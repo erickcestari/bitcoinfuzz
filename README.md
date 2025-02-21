@@ -5,6 +5,9 @@ Note this project is a WIP and might be not stable.
 
 # Installation
 
+export CC=clang
+export CXX=clang++
+
 ### rust-bitcoin
 
 Change the `RUST_TARGET` according to your architecture.
