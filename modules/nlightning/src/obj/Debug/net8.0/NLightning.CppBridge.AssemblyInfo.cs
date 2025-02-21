@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NLightning.CppBridge")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bad476f133bebc7ec36532226a8ad255b2db030f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8a1f16c2df548f77dae2d20fc0292d1c16d1fbf3")]
 [assembly: System.Reflection.AssemblyProductAttribute("NLightning.CppBridge")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NLightning.CppBridge")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
