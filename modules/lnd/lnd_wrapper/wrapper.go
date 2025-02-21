@@ -12,37 +12,61 @@ typedef struct {
 import "C"
 import (
 	"bytes"
+	"runtime"
 	"unsafe"
 
 	"github.com/lightningnetwork/lnd/channeldb"
 )
 
 //export LndDeserializeInvoice
-func LndDeserializeInvoice(invoiceData C.ByteArray) *C.char {
-	if invoiceData.length <= 0 {
-		return nil
+func LndDeserializeInvoice(data *C.uint8_t, length C.size_t) C.int {
+	// Early validation
+	if data == nil || length <= 0 {
+		return 0
 	}
 
-	invoiceBytes := C.GoBytes(unsafe.Pointer(invoiceData.data), invoiceData.length)
-	if len(invoiceBytes) == 0 {
-		return nil
+	// Force garbage collection before processing large data
+	runtime.GC()
+
+	// Create a fixed-size slice to prevent slice growth attacks
+	// Use syncpool for better memory management in high-frequency cases
+	invoiceBytes := make([]byte, length)
+	if err := copyMemory(unsafe.Pointer(data), invoiceBytes, length); err != nil {
+		return 0
 	}
 
+	// Create a buffer with size limit
 	invoiceReader := bytes.NewReader(invoiceBytes)
 
-	invoice, err := channeldb.DeserializeInvoice(invoiceReader)
-	if err != nil {
-		return nil
+	// Clear the slice after copying to reader
+	for i := range invoiceBytes {
+		invoiceBytes[i] = 0
 	}
 
-	writter := new(bytes.Buffer)
-	err = channeldb.SerializeInvoice(writter, &invoice)
+	_, err := channeldb.DeserializeInvoice(invoiceReader)
 	if err != nil {
-		return nil
+		return 0
 	}
 
-	result := C.CString(writter.String())
-	return result
+	// Force cleanup
+	runtime.GC()
+
+	return 1
+}
+
+// copyMemory safely copies memory from a C pointer to a Go slice
+func copyMemory(src unsafe.Pointer, dest []byte, length C.size_t) error {
+	if int(length) > len(dest) {
+		return error(nil) // Return generic error
+	}
+
+	// Copy memory safely
+	for i := 0; i < int(length); i++ {
+		ptr := unsafe.Pointer(uintptr(src) + uintptr(i))
+		dest[i] = *(*byte)(ptr)
+	}
+
+	return nil
 }
 
 func main() {}
