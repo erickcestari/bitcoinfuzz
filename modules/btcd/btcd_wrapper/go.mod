@@ -1,6 +1,6 @@
 module btcd_wrapper
 
-go 1.21.3
+go 1.21
 
 require github.com/btcsuite/btcd v0.24.2
 
