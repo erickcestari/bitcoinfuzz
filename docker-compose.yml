@@ -1,0 +1,48 @@
+version: "3.8"
+
+services:
+  invoice_deserialization:
+    container_name: bitcoinfuzz_invoice_deserialization
+    build: .
+    volumes:
+      - ./output:/app/output
+    environment:
+      - CXXFLAGS=-DLND
+      - FUZZ=invoice_deserialization
+    command: ["./bitcoinfuzz"]
+
+  # script:
+  #   container_name: bitcoinfuzz_script
+  #   build: .
+  #   volumes:
+  #     - ./output:/app/output
+  #   environment:
+  #     - FUZZ=script
+  #   command: ["./bitcoinfuzz"]
+
+  # block_deserialization:
+  #   container_name: bitcoinfuzz_block_deserialization
+  #   build: .
+  #   volumes:
+  #     - ./output:/app/output
+  #   environment:
+  #     - FUZZ=block_deserialization
+  #   command: ["./bitcoinfuzz"]
+
+  # script_eval:
+  #   container_name: bitcoinfuzz_script_eval
+  #   build: .
+  #   volumes:
+  #     - ./output:/app/output
+  #   environment:
+  #     - FUZZ=script_eval
+  #   command: ["./bitcoinfuzz"]
+
+  # descriptor_parse:
+  #   container_name: bitcoinfuzz_descriptor_parse
+  #   build: .
+  #   volumes:
+  #     - ./output:/app/output
+  #   environment:
+  #     - FUZZ=descriptor_parse
+  #   command: ["./bitcoinfuzz"]

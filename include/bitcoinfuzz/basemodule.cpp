@@ -27,4 +27,9 @@ namespace bitcoinfuzz
     {
         return std::nullopt;
     }
+
+    std::optional<std::string> BaseModule::deserialize_invoice(std::span<const uint8_t> buffer) const
+    {
+        return std::nullopt;
+    }
 }

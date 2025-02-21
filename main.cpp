@@ -43,6 +43,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
 #ifdef BTCD
   driver->LoadModule(std::make_shared<bitcoinfuzz::module::Btcd>());
 #endif
+#ifdef LND
+  driver->LoadModule(std::make_shared<bitcoinfuzz::module::Lnd>());
+#endif
   driver->Run(Data, Size, target);
   return 0;
 }
