@@ -86,13 +86,20 @@ namespace bitcoinfuzz
         std::string desc{provider.ConsumeRemainingBytesAsString()};
         std::optional<std::string> last_response{std::nullopt};
 
+        // printf("Modules length: %lu\n", modules.size());
+
         for (auto &module : modules)
         {
+            // Printando o nome do módulo (assumindo que module.first contém o nome)
+            // std::cout << "Processing module: " << module.first << std::endl;
+
             std::optional<std::string> res{module.second->deserialize_invoice(buffer)};
             if (!res.has_value())
                 continue;
+
             if (last_response.has_value())
                 assert(*res == *last_response);
+
             last_response = res.value();
         }
     }
