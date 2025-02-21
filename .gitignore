@@ -2,5 +2,5 @@
 *.o
 build/
 target/
-.vscode
 bitcoinfuzz
+.vscode
