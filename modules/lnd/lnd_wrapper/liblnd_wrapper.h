@@ -85,7 +85,7 @@ typedef struct { void *data; GoInt len; GoInt cap; } GoSlice;
 extern "C" {
 #endif
 
-extern char* LndDeserializeInvoice(ByteArray invoiceData);
+extern int LndDeserializeInvoice(ByteArray invoiceData);
 
 #ifdef __cplusplus
 }

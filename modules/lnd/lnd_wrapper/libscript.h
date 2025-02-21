@@ -96,7 +96,7 @@ extern "C"
 {
 #endif
 
-  extern char *LndDeserializeInvoice(ByteArray buffer);
+  extern bool LndDeserializeInvoice(ByteArray buffer);
 
 #ifdef __cplusplus
 }

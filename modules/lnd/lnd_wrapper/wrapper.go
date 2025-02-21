@@ -18,31 +18,24 @@ import (
 )
 
 //export LndDeserializeInvoice
-func LndDeserializeInvoice(invoiceData C.ByteArray) *C.char {
+func LndDeserializeInvoice(invoiceData C.ByteArray) C.int {
 	if invoiceData.length <= 0 {
-		return nil
+		return 0
 	}
 
 	invoiceBytes := C.GoBytes(unsafe.Pointer(invoiceData.data), invoiceData.length)
 	if len(invoiceBytes) == 0 {
-		return nil
+		return 0
 	}
 
 	invoiceReader := bytes.NewReader(invoiceBytes)
 
-	invoice, err := channeldb.DeserializeInvoice(invoiceReader)
+	_, err := channeldb.DeserializeInvoice(invoiceReader)
 	if err != nil {
-		return nil
+		return 0
 	}
 
-	writter := new(bytes.Buffer)
-	err = channeldb.SerializeInvoice(writter, &invoice)
-	if err != nil {
-		return nil
-	}
-
-	result := C.CString(writter.String())
-	return result
+	return 1
 }
 
 func main() {}
