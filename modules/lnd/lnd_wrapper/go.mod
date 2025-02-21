@@ -2,10 +2,7 @@ module btcd_wrapper
 
 go 1.23.6
 
-require (
-	github.com/btcsuite/btcd v0.24.3-0.20241210095828-e646d437e95b // indirect
-	github.com/lightningnetwork/lnd v0.0.2
-)
+require github.com/lightningnetwork/lnd v0.0.2
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
@@ -14,6 +11,7 @@ require (
 	github.com/aead/chacha20 v0.0.0-20180709150244-8b13a72661da // indirect
 	github.com/aead/siphash v1.0.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/btcsuite/btcd v0.24.3-0.20241210095828-e646d437e95b // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4 // indirect
 	github.com/btcsuite/btcd/btcutil v1.1.5 // indirect
 	github.com/btcsuite/btcd/btcutil/psbt v1.1.8 // indirect
@@ -169,6 +167,4 @@ require (
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
-replace github.com/btcsuite/btcd => github.com/brunoerg/btcd v0.0.0-20241216183540-e5c81dd28de8
-
-replace github.com/lightningnetwork/lnd => github.com/erickcestari/lnd v0.0.0-20250221173332-6ff13680747c
+replace github.com/lightningnetwork/lnd => github.com/erickcestari/lnd v0.0.0-20250221175847-eb239bcf9104

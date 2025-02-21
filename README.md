@@ -31,6 +31,9 @@ export CXXFLAGS="$CXXFLAGS -DRUST_MINISCRIPT"
 
 For the `script_eval` target, we recommend to get Mako from https://github.com/brunoerg/mako/tree/bitcoinfuzz since there are some checks that should be skipped for better fuzzing.
 
+export CXX=clang++ 
+export CC=clang
+
 ```bash
 cd modules/mako
 export MAKO_LIB_PATH="path/to/libmako.a"
