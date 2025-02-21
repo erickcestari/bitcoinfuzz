@@ -32,3 +32,11 @@ services:
     environment:
       - FUZZ=descriptor_parse
     command: ["./bitcoinfuzz"]
+
+  invoice_deserialization:
+    build: .
+    volumes:
+      - ./output:/app/output
+    environment:
+      - FUZZ=invoice_deserialization
+    command: ["./bitcoinfuzz"]

@@ -33,6 +33,7 @@ RUN cd modules/rustbitcoin && make
 RUN cd modules/rustminiscript/rust_miniscript_lib && cargo build --release
 RUN cd modules/rustminiscript && make
 RUN cd modules/btcd && make
+RUN cd modules/ldk/ldk_lib && cargo build --release
 # RUN cd modules/bitcoin && make
 
 # Construir o bitcoinfuzz
