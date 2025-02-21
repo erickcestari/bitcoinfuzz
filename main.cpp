@@ -26,6 +26,10 @@
 #include <modules/ldk/module.h>
 #endif
 
+#ifdef LND
+#include <modules/lnd/module.h>
+#endif
+
 std::shared_ptr<bitcoinfuzz::Driver> driver = nullptr;
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
@@ -49,6 +53,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
 #endif
 #ifdef LDK
   driver->LoadModule(std::make_shared<bitcoinfuzz::module::Ldk>());
+#endif
+#ifdef LND
+  driver->LoadModule(std::make_shared<bitcoinfuzz::module::Lnd>());
 #endif
 
   driver->Run(Data, Size, target);
