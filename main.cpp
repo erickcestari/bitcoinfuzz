@@ -22,11 +22,19 @@
 #include <modules/btcd/module.h>
 #endif
 
+#ifdef LDK
+#include <modules/ldk/module.h>
+#endif
+
+#ifdef LND
+#include <modules/lnd/module.h>
+#endif
+
 std::shared_ptr<bitcoinfuzz::Driver> driver = nullptr;
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
 {
-  const char* target = std::getenv("FUZZ");
+  const char *target = std::getenv("FUZZ");
   driver = std::make_shared<bitcoinfuzz::Driver>();
 #ifdef BITCOIN_CORE
   driver->LoadModule(std::make_shared<bitcoinfuzz::module::Bitcoin>());
@@ -43,6 +51,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
 #ifdef BTCD
   driver->LoadModule(std::make_shared<bitcoinfuzz::module::Btcd>());
 #endif
-  driver->Run(Data, Size, target);
+#ifdef LDK
+  driver->LoadModule(std::make_shared<bitcoinfuzz::module::Ldk>());
+#endif
+#ifdef LND
+  driver->LoadModule(std::make_shared<bitcoinfuzz::module::Lnd>());
+#endif
   return 0;
 }
