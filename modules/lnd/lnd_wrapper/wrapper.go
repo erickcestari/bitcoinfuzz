@@ -11,27 +11,29 @@ typedef struct {
 */
 import "C"
 import (
-	"log"
+	"bytes"
 	"unsafe"
 
 	"github.com/lightningnetwork/lnd/channeldb"
 )
 
 //export LndDeserializeInvoice
-func LndDeserializeInvoice(invoiceData C.ByteArray) C.int {
-	invoice := C.GoBytes(unsafe.Pointer(invoiceData.data), invoiceData.length)
+func LndDeserializeInvoice(invoiceData C.ByteArray) *C.char {
+	invoiceBytes := C.GoBytes(unsafe.Pointer(invoiceData.data), invoiceData.length)
+	invoiceReader := bytes.NewReader(invoiceBytes)
 
-
-	log.Printf("Deserializing invoice: %v", invoice)
-
-	_, err := channeldb.DeserializeInvoice(invoice)
+	invoice, err := channeldb.DeserializeInvoice(invoiceReader)
 	if err != nil {
-		log.Printf("Error deserializing invoice: %v", err)
-		return 0
+		return nil
 	}
 
-	return 1
-}
+	writter := new(bytes.Buffer)
+	err = channeldb.SerializeInvoice(writter, &invoice)
+	if err != nil {
+		return nil
+	}
 
+	return C.CString(writter.String())
+}
 
 func main() {}
