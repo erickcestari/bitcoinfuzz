@@ -11,24 +11,37 @@ typedef struct {
 */
 import "C"
 import (
-	"log"
+	"io"
 	"unsafe"
-
-	"github.com/lightningnetwork/lnd/channeldb"
+	"bytes"
+	_ "unsafe" // Required for go:linkname
+	_ "github.com/lightningnetwork/lnd/channeldb" // Ensure it's linked	
+	_ "github.com/lightningnetwork/lnd/invoices"
 )
 
-//export LndDeserializeInvoice
-func LndDeserializeInvoice(invoiceData C.ByteArray) C.int {
-	invoice := C.GoBytes(unsafe.Pointer(invoiceData.data), invoiceData.length)
+//go:linkname deserializeInvoice github.com/lightningnetwork/lnd/channeldb.deserializeInvoice
+func deserializeInvoice(r io.Reader)
 
 
-	log.Printf("Deserializing invoice: %v", invoice)
+//go:linkname serializeInvoice github.com/lightningnetwork/lnd/channeldb.serializeInvoice
+func serializeInvoice(r io.Reader)
 
-	_, err := channeldb.DeserializeInvoice(invoice)
-	if err != nil {
-		log.Printf("Error deserializing invoice: %v", err)
-		return 0
-	}
+//export LndDeserializeInvoice	
+func LndDeserializeInvoice(invoiceData C.ByteArray) C.char {
+	invoiceBytes := C.GoBytes(unsafe.Pointer(invoiceData.data), invoiceData.length)
+	invoiceReader := bytes.NewReader(invoiceBytes)
+
+	deserializeInvoice(invoiceReader)
+	// if err != nil {
+	// 	return nil
+	// }
+
+	// writter := new(bytes.Buffer)
+	// serializeInvoice(writter, &invoice)
+
+	// if err != nil {
+	// 	return nil
+	// }
 
 	return 1
 }

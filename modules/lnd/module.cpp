@@ -9,8 +9,16 @@ namespace bitcoinfuzz
     {
         Lnd::Lnd(void) : BaseModule("Lnd") {}
 
-        std::optional<std::string> Lnd::deserialize_invoice(std::span<const uint8_t> buffer) const
+        std::optional<std::string> deserialize_invoice(std::span<const uint8_t> buffer)
         {
+            // Print the buffer
+            for (auto byte : buffer)
+            {
+                std::cout << byte;
+            }
+            std::cout << std::endl;
+            
+
             // TBD
             return std::nullopt;
         }
