@@ -96,7 +96,7 @@ extern "C"
 {
 #endif
 
-  extern bool LndDeserializeInvoice(ByteArray buffer);
+  extern int LndDeserializeInvoice(const uint8_t *data, size_t length);
 
 #ifdef __cplusplus
 }

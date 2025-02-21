@@ -11,11 +11,7 @@ namespace bitcoinfuzz
 
         std::optional<bool> Lnd::deserialize_invoice(std::span<const uint8_t> buffer) const
         {
-            ByteArray data{
-                .data = reinterpret_cast<char *>(const_cast<uint8_t *>(buffer.data())),
-                .length = static_cast<int>(buffer.size())};
-            bool result = LndDeserializeInvoice(data);
-            printf("LndDeserializeInvoice: %d\n", result);
+            bool result = LndDeserializeInvoice(buffer.data(), buffer.size());
             return result;
         }
 
