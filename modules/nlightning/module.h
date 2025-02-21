@@ -9,7 +9,7 @@ namespace bitcoinfuzz
 {
     namespace module
     {
-        typedef bool (*DecodeInvoiceFunc)(void *);
+        typedef bool (*DecodeInvoiceFunc)(const uint8_t *data, int length);
 
         class NLightning : public BaseModule
         {

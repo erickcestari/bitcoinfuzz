@@ -5,6 +5,7 @@
     <RootNamespace>NLightning.CppBridge</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
     <!-- Enable Native AOT compilation -->
     <PublishAot>true</PublishAot>

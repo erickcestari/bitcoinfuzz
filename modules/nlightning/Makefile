@@ -1,4 +1,5 @@
 # CXX = /opt/homebrew/opt/llvm/bin/clang++
+# CC= clang
 # CXXFLAGS += -Wall -Wextra -std=c++20 -I. -I ../../include
 
 # The RID (Runtime Identifier) for which you want to publish.
@@ -21,6 +22,7 @@ dotnet:
 		-c Release \
 		-r $(RUNTIME_ID) \
 		-o $(DOTNET_OUT_DIR)
+	mv src/bin/libsodium.dylib ../../libsodium.dylib
 
 module.o: module.cpp
 	$(CXX) $(CXXFLAGS) -fPIC -c module.cpp -o module.o

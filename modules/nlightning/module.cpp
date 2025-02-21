@@ -14,7 +14,7 @@ namespace bitcoinfuzz
 
         NLightning::NLightning(void) : BaseModule("NLightning")
         {
-            void *libHandle = dlopen("./modules/nlightning/bin/NLightning.CppBridge.dylib", RTLD_NOW);
+            void *libHandle = dlopen("./modules/nlightning/src/bin/NLightning.CppBridge.dylib", RTLD_NOW);
             if (!libHandle)
             {
                 std::cerr << "Failed to load NLightning.Bolts.dylib: " << dlerror() << std::endl;
@@ -34,7 +34,7 @@ namespace bitcoinfuzz
 
         std::optional<bool> NLightning::deserialize_invoice(std::span<const uint8_t> buffer) const
         {
-            return decodeInvoice(&buffer);
+            return decodeInvoice(buffer.data(), (int)buffer.size());
         }
     }
 }

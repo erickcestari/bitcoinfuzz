@@ -6,3 +6,4 @@ bitcoinfuzz
 .vscode
 bin/
 obj/
+*.dylib
