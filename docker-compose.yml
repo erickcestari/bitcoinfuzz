@@ -1,0 +1,34 @@
+version: "3.8"
+
+services:
+  script:
+    build: .
+    volumes:
+      - ./output:/app/output
+    environment:
+      - FUZZ=script
+    command: ["./bitcoinfuzz"]
+
+  block_deserialization:
+    build: .
+    volumes:
+      - ./output:/app/output
+    environment:
+      - FUZZ=block_deserialization
+    command: ["./bitcoinfuzz"]
+
+  script_eval:
+    build: .
+    volumes:
+      - ./output:/app/output
+    environment:
+      - FUZZ=script_eval
+    command: ["./bitcoinfuzz"]
+
+  descriptor_parse:
+    build: .
+    volumes:
+      - ./output:/app/output
+    environment:
+      - FUZZ=descriptor_parse
+    command: ["./bitcoinfuzz"]
