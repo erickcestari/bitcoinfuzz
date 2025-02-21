@@ -171,4 +171,4 @@ require (
 
 replace github.com/btcsuite/btcd => github.com/brunoerg/btcd v0.0.0-20241216183540-e5c81dd28de8
 
-replace github.com/lightningnetwork/lnd => github.com/erickcestari/lnd v0.0.0-20250221173332-6ff13680747c
+replace github.com/lightningnetwork/lnd => github.com/erickcestari/lnd v0.0.0-20250221175847-eb239bcf9104

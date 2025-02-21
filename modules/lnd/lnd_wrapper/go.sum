@@ -142,8 +142,8 @@ github.com/envoyproxy/go-control-plane v0.9.10-0.20210907150352-cf90f659a021/go.
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
 github.com/envoyproxy/protoc-gen-validate v1.0.2 h1:QkIBuU5k+x7/QXPvPPnWXWlCdaBFApVqftFV6k087DA=
 github.com/envoyproxy/protoc-gen-validate v1.0.2/go.mod h1:GpiZQP3dDbg4JouG/NNS7QWXpgx6x8QiMKdmN72jogE=
-github.com/erickcestari/lnd v0.0.0-20250221173332-6ff13680747c h1:8E9oOwg4s2smDKTJJ5DW7Z4jaM4dCrShULG3kdkenSU=
-github.com/erickcestari/lnd v0.0.0-20250221173332-6ff13680747c/go.mod h1:5fYMAma+ylPOV+wycJuxSIwPLyRYRqKZTfiqk+59c+s=
+github.com/erickcestari/lnd v0.0.0-20250221175847-eb239bcf9104 h1:6R4wbC90ugM89hRt+Fn5fz4SDpUNt3GXsEO/n8pL6I0=
+github.com/erickcestari/lnd v0.0.0-20250221175847-eb239bcf9104/go.mod h1:5fYMAma+ylPOV+wycJuxSIwPLyRYRqKZTfiqk+59c+s=
 github.com/fergusstrange/embedded-postgres v1.25.0 h1:sa+k2Ycrtz40eCRPOzI7Ry7TtkWXXJ+YRsxpKMDhxK0=
 github.com/fergusstrange/embedded-postgres v1.25.0/go.mod h1:t/MLs0h9ukYM6FSt99R7InCHs1nW0ordoVCcnzmpTYw=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=

@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <bitcoinfuzz/basemodule.h>
 
-
 namespace bitcoinfuzz
 {
     namespace module
@@ -14,9 +13,9 @@ namespace bitcoinfuzz
         {
         public:
             Lnd(void);
-            std::optional<std::string> Lnd::deserialize_invoice(std::span<const uint8_t> buffer) const override;
+            std::optional<std::string> deserialize_invoice(std::span<const uint8_t> buffer) const override;
             ~Lnd() noexcept override = default;
         };
-        
+
     }
 }
