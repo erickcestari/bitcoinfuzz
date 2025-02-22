@@ -1,6 +1,6 @@
 # CXX = /opt/homebrew/opt/llvm/bin/clang++
 # CC= clang
-# CXXFLAGS += -Wall -Wextra -std=c++20 -I. -I ../../include
+CXXFLAGS += -Wall -Wextra -std=c++20 -I. -I ../../include
 
 # The RID (Runtime Identifier) for which you want to publish.
 #   linux-x64   (Linux 64-bit)
