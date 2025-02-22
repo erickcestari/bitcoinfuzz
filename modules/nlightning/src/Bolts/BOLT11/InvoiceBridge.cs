@@ -23,8 +23,7 @@ public static class InvoiceBridge
                     return false;
                 }
 
-                var invoice = Invoice.Decode(invoiceString);
-                Console.WriteLine($"Invoice is real: {invoice.AmountMilliSats}");
+                _ = Invoice.Decode(invoiceString);
                 return true;
             }
         }
