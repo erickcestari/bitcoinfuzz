@@ -24,36 +24,22 @@ import (
 
 //export LndDeserializeInvoice
 func LndDeserializeInvoice(data *C.uint8_t, length C.size_t) C.int {
-	// Early validation
 	if data == nil || length == 0 {
 		return 0
 	}
 
-	// Force garbage collection before processing
 	runtime.GC()
 
-	// Convert C data to Go slice
 	invoiceBytes := C.GoBytes(unsafe.Pointer(data), C.int(length))
 	invoiceStr := string(invoiceBytes)
 
-	// Specify the Bitcoin network (e.g., mainnet, testnet, regtest)
 	network := &chaincfg.MainNetParams
 
-	// Decode the invoice with the correct network parameters
-	_/*invoice*/, err := zpay32.Decode(invoiceStr, network)
+	_, err := zpay32.Decode(invoiceStr, network)
 	if err != nil {
-		// log.Printf("Invoice decoding failed: %v\n", err)
 		return 0
 	}
 
-	// Print decoded details
-	// fmt.Println("Invoice Details:")
-	// fmt.Println("Amount (msat):", invoice.MilliSat)
-	// fmt.Println("Description:", invoice.Description)
-	// fmt.Println("Expiry:", invoice.Expiry())
-	// fmt.Println("Destination Public Key:", invoice.Destination.SerializeCompressed())
-
-	// Force cleanup
 	runtime.GC()
 
 	return 1
