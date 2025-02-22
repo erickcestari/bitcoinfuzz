@@ -13,7 +13,7 @@ import "C"
 
 import (
 	// "fmt"
-	"log"
+	// "log"
 	"runtime"
 	"unsafe"
 
@@ -42,7 +42,7 @@ func LndDeserializeInvoice(data *C.uint8_t, length C.size_t) C.int {
 	// Decode the invoice with the correct network parameters
 	_/*invoice*/, err := zpay32.Decode(invoiceStr, network)
 	if err != nil {
-		log.Printf("Invoice decoding failed: %v\n", err)
+		// log.Printf("Invoice decoding failed: %v\n", err)
 		return 0
 	}
 
