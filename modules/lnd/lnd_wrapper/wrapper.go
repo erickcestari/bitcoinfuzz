@@ -10,43 +10,48 @@ typedef struct {
 } ByteArray;
 */
 import "C"
+
 import (
-	"bytes"
+	// "fmt"
+	"log"
 	"runtime"
 	"unsafe"
 
-	"github.com/lightningnetwork/lnd/channeldb"
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/lightningnetwork/lnd/zpay32"
 )
+
 
 //export LndDeserializeInvoice
 func LndDeserializeInvoice(data *C.uint8_t, length C.size_t) C.int {
 	// Early validation
-	if data == nil || length <= 0 {
+	if data == nil || length == 0 {
 		return 0
 	}
 
-	// Force garbage collection before processing large data
+	// Force garbage collection before processing
 	runtime.GC()
 
-	// Create a fixed-size slice to prevent slice growth attacks
-	// Use syncpool for better memory management in high-frequency cases
-	invoiceBytes := make([]byte, length)
-	if err := copyMemory(unsafe.Pointer(data), invoiceBytes, length); err != nil {
-		return 0
-	}
+	// Convert C data to Go slice
+	invoiceBytes := C.GoBytes(unsafe.Pointer(data), C.int(length))
+	invoiceStr := string(invoiceBytes)
 
-	// Create a buffer with size limit
-	invoiceReader := bytes.NewReader(invoiceBytes)
+	// Specify the Bitcoin network (e.g., mainnet, testnet, regtest)
+	network := &chaincfg.MainNetParams
 
-	// Clear the slice after copying to reader
-	for i := range invoiceBytes {
-		invoiceBytes[i] = 0
-	}
-
-	_, err := channeldb.DeserializeInvoice(invoiceReader)
+	// Decode the invoice with the correct network parameters
+	_/*invoice*/, err := zpay32.Decode(invoiceStr, network)
 	if err != nil {
+		log.Printf("Invoice decoding failed: %v\n", err)
 		return 0
 	}
+
+	// Print decoded details
+	// fmt.Println("Invoice Details:")
+	// fmt.Println("Amount (msat):", invoice.MilliSat)
+	// fmt.Println("Description:", invoice.Description)
+	// fmt.Println("Expiry:", invoice.Expiry())
+	// fmt.Println("Destination Public Key:", invoice.Destination.SerializeCompressed())
 
 	// Force cleanup
 	runtime.GC()
