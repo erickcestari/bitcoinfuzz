@@ -4,3 +4,7 @@ build/
 target/
 bitcoinfuzz
 .vscode
+bin/
+obj/
+*.dylib
+*.so
