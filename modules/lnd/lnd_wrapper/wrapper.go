@@ -10,45 +10,36 @@ typedef struct {
 } ByteArray;
 */
 import "C"
+
 import (
-	"bytes"
+	// "fmt"
+	// "log"
 	"runtime"
 	"unsafe"
 
-	"github.com/lightningnetwork/lnd/channeldb"
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/lightningnetwork/lnd/zpay32"
 )
+
 
 //export LndDeserializeInvoice
 func LndDeserializeInvoice(data *C.uint8_t, length C.size_t) C.int {
-	// Early validation
-	if data == nil || length <= 0 {
+	if data == nil || length == 0 {
 		return 0
 	}
 
-	// Force garbage collection before processing large data
 	runtime.GC()
 
-	// Create a fixed-size slice to prevent slice growth attacks
-	// Use syncpool for better memory management in high-frequency cases
-	invoiceBytes := make([]byte, length)
-	if err := copyMemory(unsafe.Pointer(data), invoiceBytes, length); err != nil {
-		return 0
-	}
+	invoiceBytes := C.GoBytes(unsafe.Pointer(data), C.int(length))
+	invoiceStr := string(invoiceBytes)
 
-	// Create a buffer with size limit
-	invoiceReader := bytes.NewReader(invoiceBytes)
+	network := &chaincfg.MainNetParams
 
-	// Clear the slice after copying to reader
-	for i := range invoiceBytes {
-		invoiceBytes[i] = 0
-	}
-
-	_, err := channeldb.DeserializeInvoice(invoiceReader)
+	_, err := zpay32.Decode(invoiceStr, network)
 	if err != nil {
 		return 0
 	}
 
-	// Force cleanup
 	runtime.GC()
 
 	return 1
