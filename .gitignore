@@ -7,3 +7,4 @@ bitcoinfuzz
 bin/
 obj/
 *.dylib
+*.so
