@@ -12,7 +12,7 @@ pub unsafe extern "C" fn ldk_des_invoice(data: *const u8, len: usize) -> bool {
         Err(_) => return false,
     };
 
-    match lightning_invoice::Bolt11Invoice::from_str(s) {
+    match lightning_invoice::SignedRawBolt11Invoice::from_str(s) {
         Ok(_) => true,
         Err(_) => false,
     }
