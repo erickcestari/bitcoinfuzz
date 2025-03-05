@@ -9,4 +9,5 @@ edition = "2021"
 
 [dependencies]
 lightning-invoice = "0.33.1"
+secp256k1 = "0.30.0"
 
