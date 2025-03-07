@@ -1,0 +1,68 @@
+name: Check
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install rust-toolchain
+        uses: actions-rs/toolchain@v1.0.6
+        with:
+          toolchain: stable
+
+      - name: Install go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+
+      - name: Install LLVM and Clang
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 18
+          sudo ln -sfT clang++-18 /usr/bin/clang++
+          sudo ln -sfT clang-18 /usr/bin/clang
+        shell: bash
+
+      - name: Install Boost
+        run: |
+          sudo apt install libboost-all-dev
+
+      - name: Build - Bitcoin Core
+        timeout-minutes: 40
+        run: |
+          export BOOST_LIB_DIR=/usr/lib/x86_64-linux-gnu/
+          export CC=/usr/bin/clang
+          export CXX=/usr/bin/clang++
+          cd modules/bitcoin && make
+
+      - name: Build - rust bitcoin
+        timeout-minutes: 5
+        run: |
+          export CC=/usr/bin/clang
+          export CXX=/usr/bin/clang++
+          rustup default nightly
+          cd modules/rustbitcoin && make cargo && make
+
+      - name: Build - bitcoinfuzz
+        timeout-minutes: 5
+        run: |
+          export CC=/usr/bin/clang
+          export CXX=/usr/bin/clang++
+          export CXXFLAGS="-DBITCOIN_CORE -DRUST_BITCOIN"
+          make
+
+      - name: Test
+        run: FUZZ=script ./bitcoinfuzz -runs=100

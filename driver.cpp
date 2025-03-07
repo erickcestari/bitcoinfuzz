@@ -18,10 +18,10 @@ namespace bitcoinfuzz
 
     void Driver::ScriptTarget(std::span<const uint8_t> buffer) const
     {
-        std::optional<bool> last_response{std::nullopt};
+        std::optional<std::string> last_response{std::nullopt};
         for (auto &module : modules)
         {
-            std::optional<bool> res{module.second->script_parse(buffer)};
+            std::optional<std::string> res{module.second->script_parse(buffer)};
             if (!res.has_value())
                 continue;
             if (last_response.has_value())
@@ -97,6 +97,41 @@ namespace bitcoinfuzz
         }
     }
 
+    void Driver::MiniscriptParseTarget(std::span<const uint8_t> buffer) const
+    {
+        FuzzedDataProvider provider(buffer.data(), buffer.size());
+        std::string miniscript{provider.ConsumeRemainingBytesAsString()};
+        // Skip these cases
+        if (miniscript == "1" || miniscript == "0")
+            return;
+        std::optional<bool> last_response{std::nullopt};
+        for (auto &module : modules)
+        {
+            std::optional<bool> res{module.second->miniscript_parse(miniscript)};
+            if (!res.has_value())
+                continue;
+            if (last_response.has_value())
+                assert(*res == *last_response);
+            last_response = *res;
+        }
+    }
+
+    void Driver::ScriptAsmTarget(std::span<const uint8_t> buffer) const
+    {
+        std::optional<std::string> last_response{std::nullopt};
+        for (auto &module : modules)
+        {
+            std::optional<std::string> res{module.second->script_asm(buffer)};
+            if (!res.has_value())
+                continue;
+            if (last_response.has_value())
+            {
+                assert(*res == *last_response);
+            }
+            last_response = *res;
+        }
+    }
+
     void Driver::Run(const uint8_t *data, const size_t size, const std::string &target) const
     {
         std::span<const uint8_t> buffer{data, size};
@@ -119,6 +154,14 @@ namespace bitcoinfuzz
         else if (target == "invoice_deserialization")
         {
             this->InvoiceDeserializationTarget(buffer);
+        }
+        else if (target == "miniscript_parse")
+        {
+            this->MiniscriptParseTarget(buffer);
+        }
+        else if (target == "script_asm")
+        {
+            this->ScriptAsmTarget(buffer);
         }
         else
         {
