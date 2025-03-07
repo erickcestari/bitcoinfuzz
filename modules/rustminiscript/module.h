@@ -14,6 +14,7 @@ namespace bitcoinfuzz
         public:
             Rustminiscript(void);
             std::optional<bool> descriptor_parse(std::string str) const override;
+            std::optional<bool> miniscript_parse(std::string str) const override;
             ~Rustminiscript() noexcept override = default;
         };
 

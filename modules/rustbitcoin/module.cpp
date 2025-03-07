@@ -1,9 +1,7 @@
 #include <span>
 
 #include "module.h"
-
-extern "C" bool rust_bitcoin_script(const uint8_t *data, size_t len);
-extern "C" char* rust_bitcoin_des_block(const uint8_t *data, size_t len);
+#include "rust_bitcoin_lib/rust_bitcoin_lib.h"
 
 namespace bitcoinfuzz
 {
@@ -11,9 +9,12 @@ namespace bitcoinfuzz
     {
         Rustbitcoin::Rustbitcoin(void) : BaseModule("Rustbitcoin") {}
 
-        std::optional<bool> Rustbitcoin::script_parse(std::span<const uint8_t> buffer) const
+        std::optional<std::string> Rustbitcoin::script_parse(std::span<const uint8_t> buffer) const
         {
-            return rust_bitcoin_script(buffer.data(), buffer.size());
+            auto script{rust_bitcoin_script(buffer.data(), buffer.size())};
+            std::string result(script);
+            free_c_string(script);
+            return result;
         }
 
         std::optional<std::vector<bool>> Rustbitcoin::deserialize_block(std::span<const uint8_t> buffer) const
@@ -25,6 +26,5 @@ namespace bitcoinfuzz
             std::vector<bool> final_result{"true" == result};
             return final_result;
         }
-
     }
 }
