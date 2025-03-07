@@ -10,23 +10,17 @@ export CXX=clang++
 
 ### rust-bitcoin
 
-Change the `RUST_TARGET` according to your architecture.
-
 ```bash
-export RUST_TARGET="aarch64-apple-darwin"
 cd modules/rustbitcoin
-cd rust_bitcoin_lib && cargo build --release --target=$RUST_TARGET
-cd .. && make
+make cargo && make
 export CXXFLAGS="$CXXFLAGS -DRUST_BITCOIN"
 ```
 
-### rust-miniscript 
+### rust-miniscript
 
 ```bash
-export RUST_TARGET="aarch64-apple-darwin"
 cd modules/rustminiscript
-cd rust_miniscript_lib && cargo build --release --target=$RUST_TARGET
-cd .. && make
+make cargo && make
 export CXXFLAGS="$CXXFLAGS -DRUST_MINISCRIPT"
 ```
 
@@ -43,7 +37,7 @@ export MAKO_LIB_PATH="path/to/libmako.a"
 make
 ```
 
-### btcd 
+### btcd
 
 ```bash
 cd modules/btcd
@@ -74,7 +68,7 @@ FUZZ=target_name ./bitcoinfuzz
 - rust-bitcoin: https://github.com/rust-bitcoin/rust-bitcoin/issues/2681
 - btcd: https://github.com/btcsuite/btcd/issues/2195 (API mismatch with Bitcoin Core)
 - Bitcoin Core: https://github.com/brunoerg/bitcoinfuzz/issues/34
-- rust-miniscript: https://github.com/rust-bitcoin/rust-miniscript/issues/696 (not found but reproductive) 
+- rust-miniscript: https://github.com/rust-bitcoin/rust-miniscript/issues/696 (not found but reproductive)
 - rust-miniscript: https://github.com/brunoerg/bitcoinfuzz/issues/39
 - rust-bitcoin: https://github.com/rust-bitcoin/rust-bitcoin/issues/2891
 - rust-bitcoin: https://github.com/rust-bitcoin/rust-bitcoin/issues/2879
