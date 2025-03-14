@@ -82,8 +82,26 @@ jobs:
       - name: Build - bitcoinfuzz
         timeout-minutes: 5
         run: |
-          export CXXFLAGS="-DBITCOIN_CORE -DRUST_MODULES"
+          export CXXFLAGS="-DBITCOIN_CORE -DRUST_MODULES -DBTCD -DNLIGHTNING"
           make
 
-      - name: Test
+      - name: Test - script
         run: FUZZ=script ./bitcoinfuzz -runs=100
+      
+      - name: Test - block_deserialization
+        run: FUZZ=block_deserialization ./bitcoinfuzz -runs=100
+      
+      - name: Test - script_eval
+        run: FUZZ=script_eval ./bitcoinfuzz -runs=100
+      
+      - name: Test - descriptor_parse
+        run: FUZZ=descriptor_parse ./bitcoinfuzz -runs=100
+      
+      - name: Test - miniscript_parse
+        run: FUZZ=miniscript_parse ./bitcoinfuzz -runs=100
+      
+      - name: Test - script_asm
+        run: FUZZ=script_asm ./bitcoinfuzz -runs=100
+      
+      - name: Test - invoice_deserialization
+        run: FUZZ=invoice_deserialization ./bitcoinfuzz -runs=100
