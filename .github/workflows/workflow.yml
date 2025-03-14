@@ -1,6 +1,6 @@
 name: Check
 
-on: [push]
+on: [push, pull_request]
 
 jobs:
   build:
@@ -26,6 +26,11 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "stable"
+      
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
 
       - name: Install LLVM and Clang
         run: |
@@ -39,30 +44,76 @@ jobs:
       - name: Install Boost
         run: |
           sudo apt install libboost-all-dev
+      
+      - name: Setup common environment
+        run: |
+          export CC=/usr/bin/clang
+          export CXX=/usr/bin/clang++
+          echo "CC=/usr/bin/clang" >> $GITHUB_ENV
+          echo "CXX=/usr/bin/clang++" >> $GITHUB_ENV
 
       - name: Build - Bitcoin Core
         timeout-minutes: 40
         run: |
           export BOOST_LIB_DIR=/usr/lib/x86_64-linux-gnu/
-          export CC=/usr/bin/clang
-          export CXX=/usr/bin/clang++
           cd modules/bitcoin && make
 
       - name: Build - rust bitcoin
         timeout-minutes: 5
         run: |
-          export CC=/usr/bin/clang
-          export CXX=/usr/bin/clang++
           rustup default nightly
           cd modules/rustbitcoin && make cargo && make
+
+      - name: Build - rust miniscript
+        timeout-minutes: 5
+        run: |
+          rustup default nightly
+          cd modules/rustminiscript && make cargo && make
+
+      - name: Build - btcd
+        timeout-minutes: 5
+        run: |
+          cd modules/btcd && make
+      
+      - name: Build - lnd
+        timeout-minutes: 5
+        run: |
+          cd modules/lnd && make
+          
+      - name: Build - ldk
+        timeout-minutes: 5
+        run: |
+          rustup default nightly
+          cd modules/ldk && make cargo && make
+
+      - name: Build - nlightning
+        timeout-minutes: 5
+        run: |
+          cd modules/nlightning && make
 
       - name: Build - bitcoinfuzz
         timeout-minutes: 5
         run: |
-          export CC=/usr/bin/clang
-          export CXX=/usr/bin/clang++
-          export CXXFLAGS="-DBITCOIN_CORE -DRUST_BITCOIN"
+          export CXXFLAGS="-DBITCOIN_CORE -DRUST_BITCOIN -DRUST_MINISCRIPT -DBTCD -DLND -DNLIGHTNING -DLDK"
           make
 
-      - name: Test
+      - name: Test - script
         run: FUZZ=script ./bitcoinfuzz -runs=100
+
+      - name: Test - block_deserialization
+        run: FUZZ=block_deserialization ./bitcoinfuzz -runs=100
+
+      - name: Test - script_eval
+        run: FUZZ=script_eval ./bitcoinfuzz -runs=100
+
+      - name: Test - descriptor_parse
+        run: FUZZ=descriptor_parse ./bitcoinfuzz -runs=100
+
+      - name: Test - miniscript_parse
+        run: FUZZ=miniscript_parse ./bitcoinfuzz -runs=100
+
+      - name: Test - script_asm
+        run: FUZZ=script_asm ./bitcoinfuzz -runs=100
+
+      - name: Test - invoice_deserialization
+        run: FUZZ=invoice_deserialization ./bitcoinfuzz -runs=100

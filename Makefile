@@ -5,7 +5,9 @@ CXXFLAGS += -fsanitize=address,fuzzer -Wall -Wextra -std=c++20 -I include -I .
 MODULES := $(wildcard modules/*/module.a)
 
 ifeq ($(UNAME_S), Darwin)
-LDFLAGS = -framework CoreFoundation -Wl,-ld_classic
+    LDFLAGS = -framework CoreFoundation -Wl,-ld_classic -Wl,-allow_multiple_definition
+else
+    LDFLAGS = -Wl,-z,muldefs
 endif
 
 bitcoinfuzz: main.cpp driver.o include/bitcoinfuzz/basemodule.o
