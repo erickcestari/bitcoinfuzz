@@ -37,7 +37,9 @@ namespace bitcoinfuzz
                 .data = reinterpret_cast<char *>(const_cast<uint8_t *>(buffer.data())),
                 .length = static_cast<int>(buffer.size())};
 
-            std::string result{BTCDDesBlock(script_data)};
+            auto pointer{BTCDDesBlock(script_data)};
+            std::string result(pointer);
+            BTCDFreeString(pointer);
             std::vector<bool> final_result{"true" == result};
             return final_result;
         }

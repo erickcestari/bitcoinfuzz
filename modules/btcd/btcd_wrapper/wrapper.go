@@ -85,4 +85,9 @@ func BTCDDesBlock(scriptData C.ByteArray) *C.char {
 	return C.CString("true")
 }
 
+//export BTCDFreeString
+func BTCDFreeString(ptr *C.char) {
+	C.free(unsafe.Pointer(ptr))
+}
+
 func main() {}
