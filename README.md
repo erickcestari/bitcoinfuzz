@@ -80,6 +80,21 @@ make
 export CXXFLAGS="$CXXFLAGS -DBTCD"
 ```
 
+### embit
+
+To run the fuzzer with `embit` module, you need to install the `embit` library.
+
+To install the `embit` library, you can use the following command:
+```bash
+pip install embit
+```
+
+```bash
+cd modules/embit
+make
+export CXXFLAGS="$CXXFLAGS -DEMBIT"
+```
+
 ### Bitcoin Core
 
 ```bash
