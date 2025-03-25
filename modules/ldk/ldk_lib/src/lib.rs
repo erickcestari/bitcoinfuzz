@@ -38,7 +38,7 @@ pub unsafe extern "C" fn ldk_des_invoice(input: *const std::os::raw::c_char) -> 
 
                 result.push_str(";AMOUNT=");
                 if let Some(amount) = invoice.amount_pico_btc()  {
-                    let amount_milisatoshis = amount * 1_000_000_000;
+                    let amount_milisatoshis = amount/10;
                     result.push_str(&amount_milisatoshis.to_string());
                 }
                 

@@ -113,9 +113,6 @@ namespace bitcoinfuzz
             std::optional<std::string> res{module.second->deserialize_invoice(invoice)};
             if (!res.has_value()) continue;
             if (last_response.has_value()) {
-                if (*res != *last_response) {
-                    std::cout << "Invoice deserialization failed for " << module.first << std::endl;
-                }
                 assert(*res == *last_response);
             }
 
