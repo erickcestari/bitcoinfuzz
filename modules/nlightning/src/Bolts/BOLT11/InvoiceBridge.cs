@@ -28,7 +28,7 @@ public static class InvoiceBridge
 
             result += ";RECIPIENT=" + invoice.PayeePubKey;
 
-            result += ";EXPIRY=" + invoice.ExpiryDate.ToUnixTimeSeconds();
+            result += ";EXPIRY=" + (int)(invoice.ExpiryDate - DateTimeOffset.FromUnixTimeSeconds(invoice.Timestamp)).TotalSeconds;
 
             result += ";TIMESTAMP=" + invoice.Timestamp;
 
@@ -61,5 +61,17 @@ public static class InvoiceBridge
         {
             Marshal.FreeHGlobal(stringPtr);
         }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "CleanupResources")]
+    public static void CleanupResources()
+    {
+        // Force garbage collection to clean up any managed resources
+        GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
+        GC.WaitForPendingFinalizers();
+
+        // Run a second collection to clean up finalizers
+        GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
+        GC.WaitForPendingFinalizers();
     }
 }

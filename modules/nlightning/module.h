@@ -11,6 +11,7 @@ namespace bitcoinfuzz
     {
         typedef char* (*DecodeInvoiceFunc)(const char* input);
         typedef void (*FreeStringFunc)(char* ptr);
+        typedef void (*CleanupResources)();
 
         class NLightning : public BaseModule
         {
@@ -22,6 +23,7 @@ namespace bitcoinfuzz
         private:
             static DecodeInvoiceFunc decodeInvoice;
             static FreeStringFunc freeString;
+            static CleanupResources cleanupResources;
         };
     }
 }
