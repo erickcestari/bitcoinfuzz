@@ -9,11 +9,12 @@ namespace bitcoinfuzz
     {
         Lnd::Lnd(void) : BaseModule("Lnd") {}
 
-        std::optional<bool> Lnd::deserialize_invoice(std::string str) const
+        std::optional<std::string> Lnd::deserialize_invoice(std::string str) const
         {
-            bool result = LndDeserializeInvoice(str.c_str());
-            return result;
+            auto result = LndDeserializeInvoice(str.c_str());
+            std::string result_str(result);
+            LndFreeString(result);
+            return result_str;
         }
-
     }
 }

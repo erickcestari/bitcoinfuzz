@@ -13,7 +13,7 @@ namespace bitcoinfuzz
         {
         public:
             Lnd(void);
-            std::optional<bool> deserialize_invoice(std::string str) const override;
+            std::optional<std::string> deserialize_invoice(std::string str) const override;
             ~Lnd() noexcept override = default;
         };
 

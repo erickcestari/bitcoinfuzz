@@ -96,7 +96,9 @@ extern "C"
 {
 #endif
 
-  extern int LndDeserializeInvoice(const char *input);
+  extern char* LndDeserializeInvoice(const char *input);
+
+  extern void LndFreeString(const char *ptr);
 
 #ifdef __cplusplus
 }

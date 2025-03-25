@@ -32,6 +32,7 @@ namespace bitcoinfuzz
 {
     namespace module
     {
+        FreeStringFunc NLightning::freeString = nullptr;
         DecodeInvoiceFunc NLightning::decodeInvoice = nullptr;
 
         NLightning::NLightning(void) : BaseModule("NLightning")
@@ -69,11 +70,31 @@ namespace bitcoinfuzz
                 CLOSE_LIBRARY(libHandle);
                 return;
             }
+
+            if (freeString == nullptr)
+                freeString = (FreeStringFunc)GET_PROC_ADDRESS(libHandle, "FreeString");
+
+            if (!freeString)
+            {
+                std::cerr << "Failed to find FreeString symbol" << std::endl;
+                CLOSE_LIBRARY(libHandle);
+                return;
+            }
         }
 
-        std::optional<bool> NLightning::deserialize_invoice(std::string str) const
+        std::optional<std::string> NLightning::deserialize_invoice(std::string str) const
         {
-            return decodeInvoice(str.c_str());
+            char* result = decodeInvoice(str.c_str());
+            
+            if (result == nullptr) {
+                return std::nullopt;
+            }
+            
+            std::string resultStr(result);
+
+            freeString(result);
+            
+            return resultStr;
         }
     }
 }

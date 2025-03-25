@@ -80,7 +80,8 @@ typedef struct { void *data; GoInt len; GoInt cap; } GoSlice;
 extern "C" {
 #endif
 
-extern int LndDeserializeInvoice(char* cInvoiceStr);
+extern char* LndDeserializeInvoice(char* cInvoiceStr);
+extern void LndFreeString(char* ptr);
 
 #ifdef __cplusplus
 }

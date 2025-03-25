@@ -1,8 +1,7 @@
 #include <span>
 
 #include "module.h"
-
-extern "C" bool ldk_des_invoice(const char* input);
+#include "ldk_lib/ldk_lib.h"
 
 namespace bitcoinfuzz
 {
@@ -10,10 +9,12 @@ namespace bitcoinfuzz
     {
         Ldk::Ldk(void) : BaseModule("Ldk") {}
 
-        std::optional<bool> Ldk::deserialize_invoice(std::string str) const
+        std::optional<std::string> Ldk::deserialize_invoice(std::string str) const
         {
-            bool result = ldk_des_invoice(str.c_str());
-            return result;
+            auto result = ldk_des_invoice(str.c_str());
+            std::string result_str(result);
+            ldk_free_string(result);
+            return result_str;
         }
 
     }

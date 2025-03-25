@@ -107,12 +107,17 @@ namespace bitcoinfuzz
     {
         FuzzedDataProvider provider(buffer.data(), buffer.size());
         std::string invoice{provider.ConsumeRemainingBytesAsString()};
-        std::optional<bool> last_response{std::nullopt};
+        std::optional<std::string> last_response{std::nullopt};
         for (auto &module : modules)
         {
-            std::optional<bool> res{module.second->deserialize_invoice(invoice)};
+            std::optional<std::string> res{module.second->deserialize_invoice(invoice)};
             if (!res.has_value()) continue;
-            if (last_response.has_value()) assert(*res == *last_response);
+            if (last_response.has_value()) {
+                if (*res != *last_response) {
+                    std::cout << "Invoice deserialization failed for " << module.first << std::endl;
+                }
+                assert(*res == *last_response);
+            }
 
             last_response = res.value();
         }

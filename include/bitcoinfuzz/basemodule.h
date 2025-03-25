@@ -23,7 +23,7 @@ namespace bitcoinfuzz
         virtual std::optional<bool> descriptor_parse(std::string str) const;
         virtual std::optional<bool> miniscript_parse(std::string str) const;
         virtual std::optional<std::string> script_asm(std::span<const uint8_t> buffer) const;
-        virtual std::optional<bool> deserialize_invoice(std::string str) const;
+        virtual std::optional<std::string> deserialize_invoice(std::string str) const;
 
         virtual ~BaseModule() noexcept;
     };
