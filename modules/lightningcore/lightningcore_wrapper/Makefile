@@ -1,26 +1,19 @@
-CC = g++
-CXX = g++
+CC = cc
 AR = ar
-CXXFLAGS = -std=c++17 -Wall -Wextra -pedantic -fPIC
-LDFLAGS = 
 INCLUDES = -I. -I./lightning -I./lightning/ccan
-# Output file
+
 LIB_NAME = liblightningcore_wrapper.a
 
-# Source files
-SOURCES = lightningcore_lib.cpp
-OBJECTS = $(SOURCES:.cpp=.o)
+SOURCES = lightningcore_lib.c
+OBJECTS = $(SOURCES:.c=.o)
 
-# Default target
 all: $(LIB_NAME)
 
-# Rule to build the static library
 $(LIB_NAME): $(OBJECTS)
-	$(AR) rcs $@ $^
+	$(AR) rcs $@ $(OBJECTS)
 
-# Rule to compile object files
-%.o: %.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+%.o: %.c
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 # Clean rule
 clean:

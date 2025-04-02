@@ -1,3 +1,3 @@
-#include <cstdint>
+#include <stdbool.h>
 
-extern "C" bool lightningcore_des_invoice(const char* input);
+bool lightningcore_des_invoice(const char* input);
