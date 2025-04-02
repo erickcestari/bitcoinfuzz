@@ -9,7 +9,23 @@ LIB_NAME = liblightningcore_wrapper.a
 
 SOURCES = lightningcore_lib.c \
           $(LIGHTNING_DIR)/common/bolt11.c \
-          $(LIGHTNING_DIR)/ccan/ccan/tal/tal.c
+          $(LIGHTNING_DIR)/ccan/ccan/tal/tal.c \
+          $(LIGHTNING_DIR)/common/amount.c \
+          $(LIGHTNING_DIR)/common/bech32.c \
+          $(LIGHTNING_DIR)/common/bech32_util.c \
+          $(LIGHTNING_DIR)/common/features.c \
+          $(LIGHTNING_DIR)/common/node_id.c \
+          $(LIGHTNING_DIR)/common/utils.c \
+          $(LIGHTNING_DIR)/common/pseudorand.c \
+          $(LIGHTNING_DIR)/common/base32.c \
+          $(LIGHTNING_DIR)/common/setup.c \
+          $(LIGHTNING_DIR)/bitcoin/pubkey.c \
+          $(LIGHTNING_DIR)/bitcoin/chainparams.c \
+          $(LIGHTNING_DIR)/bitcoin/short_channel_id.c \
+          $(LIGHTNING_DIR)/bitcoin/script.c \
+          $(LIGHTNING_DIR)/bitcoin/tx.c \
+          $(LIGHTNING_DIR)/wire/fromwire.c \
+          $(LIGHTNING_DIR)/wire/towire.c
           
 OBJECTS = $(SOURCES:.c=.o)
 

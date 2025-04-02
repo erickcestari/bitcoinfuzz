@@ -13,7 +13,7 @@ LDFLAGS = -framework CoreFoundation -Wl,-ld_classic
 endif
 
 bitcoinfuzz: main.cpp driver.o include/bitcoinfuzz/basemodule.o
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) main.cpp $(MODULES) driver.o include/bitcoinfuzz/basemodule.o -o bitcoinfuzz $(PYTHON_LDFLAGS)
+	$(CXX) $(CXXFLAGS) -lsodium $(LDFLAGS) main.cpp $(MODULES) driver.o include/bitcoinfuzz/basemodule.o -o bitcoinfuzz $(PYTHON_LDFLAGS)
 
 driver.o: driver.cpp driver.h
 	$(CXX) $(CXXFLAGS) -c driver.cpp -o driver.o
