@@ -1,6 +1,7 @@
 CC = cc
 AR = ar
 INCLUDES = -I. -I./lightning -I./lightning/ccan
+CFLAGS = -std=c11 -Wall -Wextra -fPIC -D_DEFAULT_SOURCE
 
 LIB_NAME = liblightningcore_wrapper.a
 
