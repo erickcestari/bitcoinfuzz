@@ -1,25 +1,27 @@
 #include "clightning_lib.h"
 #include "common/bolt11.h"
 #include <stdio.h>
+#include <string.h>
+#include <bitcoin/chainparams.h>
 
 bool clightning_des_invoice(const char* input) {
     char *fail = NULL;
-    
-    struct bolt11 *invoice = bolt11_decode_nosig(
-        NULL, /* context - using NULL since we're not using tal */
+    struct bolt11 *invoice = NULL;
+    const struct chainparams *params = chainparams_for_network("bitcoin");
+
+    invoice = bolt11_decode(
+        NULL,
         input,
-        NULL, /* our_features */
-        NULL, /* description */
-        NULL, /* must_be_chain */
-        NULL, /* hash */
-        NULL, /* sig */
-        NULL, /* have_n */
+        NULL,
+        NULL,
+        params,
         &fail
     );
-    
+
     if (invoice == NULL) {
         if (fail != NULL) {
             printf("Deserialization failed: %s\n", fail);
+            tal_free(fail);
         }
         return false;
     }
