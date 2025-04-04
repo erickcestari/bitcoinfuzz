@@ -36,9 +36,14 @@
 #include <modules/embit/module.h>
 #endif
 
+#ifdef CLIGHTNING
+#include <modules/clightning/module.h>
+#endif
+
 #ifdef CUSTOM_MUTATOR_BOLT11
 #include <modules/bolt11mutator/bech32.h>
 #endif
+
 
 std::shared_ptr<bitcoinfuzz::Driver> driver = nullptr;
 
@@ -343,6 +348,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
 #endif
 #ifdef EMBIT
   driver->LoadModule(std::make_shared<bitcoinfuzz::module::Embit>());
+#endif
+#ifdef CLIGHTNING
+  driver->LoadModule(std::make_shared<bitcoinfuzz::module::CLightning>());
 #endif
 
   driver->Run(Data, Size, target);
