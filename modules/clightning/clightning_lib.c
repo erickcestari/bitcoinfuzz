@@ -26,6 +26,31 @@ bool clightning_des_invoice(const char* input) {
         return false;
     }
 
+    char* hash_str = malloc(65); // 32 bytes * 2 hex chars + 1 null terminator
+    if (hash_str == NULL) {
+        perror("Failed to allocate memory for hash string");
+        tal_free(invoice);
+        return false;
+    }
+
+    for (int i = 0; i < 32; ++i) {
+        sprintf(hash_str + (i * 2), "%02x", invoice->payment_hash.u.u8[i]);
+    }
+    hash_str[64] = '\0';
+
+    printf("PAYMENT-HASH: %s\n", hash_str);
+
+    if (invoice->msat) {
+        printf("AMOUNT: %ld\n", invoice->msat->millisatoshis);
+    } else {
+        printf("AMOUNT: Not specified in the invoice.\n");
+    }
+
+
+    free(hash_str);
+    tal_free(invoice);
+    return true;
+
     tal_free(invoice);
     return true;
 }
