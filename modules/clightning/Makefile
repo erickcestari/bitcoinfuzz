@@ -14,7 +14,12 @@ LIBCLIGHTNING_WRAPPER := $(ROOT_DIR)/modules/clightning/libclightning_wrapper.a
 
 all: module.a
 
-libclightning_wrapper.a:
+$(LIGHTNING_DIR)/config.vars:
+	@echo "Running ./configure in $(LIGHTNING_DIR)..."
+	cd $(LIGHTNING_DIR) && ./configure
+
+
+libclightning_wrapper.a: $(LIGHTNING_DIR)/config.vars
 	@echo "Copying Makefile-clightning to $(LIGHTNING_DIR)/Makefile..."
 	cp $(CLIGHTNING_MAKEFILE) $(LIGHTNING_DIR)/Makefile
 
@@ -23,9 +28,6 @@ libclightning_wrapper.a:
 
 	@echo "Copying clightning_lib.h to $(LIGHTNING_DIR)/clightning_lib.h..."
 	cp $(CLIGHTNING_LIB_H) $(LIGHTNING_DIR)/clightning_lib.h
-
-	@echo "Running ./configure in $(LIGHTNING_DIR)..."
-	cd $(LIGHTNING_DIR) && ./configure
 
 	@echo "Building lightning in $(LIGHTNING_DIR)..."
 	cd $(LIGHTNING_DIR) && make libclightning_wrapper.a
