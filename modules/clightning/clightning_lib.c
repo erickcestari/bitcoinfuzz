@@ -72,8 +72,16 @@ bool clightning_des_invoice(const char* input) {
         return false;
     }
 
-    printf("DESTINATION: %s\n", destination_str);
+    printf("RECIPIENT: %s\n", destination_str);
     free(destination_str);
+
+    printf("EXPIRY: %ld\n", invoice->expiry);
+
+    printf("TIMESTAMP: %ld\n", invoice->timestamp);
+
+    printf("ROUTING HINTS: %zu\n", tal_count(invoice->routes));
+
+    printf("MIN CLTV: %u\n", invoice->min_final_cltv_expiry);
 
     tal_free(invoice);
     return true;
