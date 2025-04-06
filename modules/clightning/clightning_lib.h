@@ -11,7 +11,7 @@ extern "C" {
 #include <stdbool.h>
 #endif
 
-bool clightning_des_invoice(const char* input);
+char *clightning_des_invoice(const char* input);
 
 #ifdef __cplusplus
 }

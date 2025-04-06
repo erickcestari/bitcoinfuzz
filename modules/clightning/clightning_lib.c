@@ -9,8 +9,7 @@
 
 static char* hex_encode(const unsigned char* data, size_t len) {
     char* hex = malloc(len * 2 + 1);
-    if (!hex) return NULL;
-
+    if (!hex) return strdup("");
     for (size_t i = 0; i < len; ++i) {
         sprintf(hex + i * 2, "%02x", data[i]);
     }
@@ -18,7 +17,7 @@ static char* hex_encode(const unsigned char* data, size_t len) {
     return hex;
 }
 
-bool clightning_des_invoice(const char* input) {
+char* clightning_des_invoice(const char* input) {
     char *fail = NULL;
     struct bolt11 *invoice = NULL;
     struct pubkey key;
@@ -27,62 +26,79 @@ bool clightning_des_invoice(const char* input) {
     invoice = bolt11_decode(NULL, input, NULL, NULL, params, &fail);
     if (!invoice) {
         if (fail) {
-            fprintf(stderr, "Deserialization failed: %s\n", fail);
             tal_free(fail);
         }
-        return false;
+        return strdup("");
     }
 
-    // Encode payment_hash
+    char *result = malloc(1024);
+    if (!result) {
+        tal_free(invoice);
+        return strdup("");
+    }
+    result[0] = '\0';
+
     char* hash_str = hex_encode(invoice->payment_hash.u.u8, 32);
-    if (!hash_str) {
-        perror("Failed to allocate memory for hash string");
-        tal_free(invoice);
-        return false;
+    strcat(result, "HASH=");
+    if (hash_str) {
+        strcat(result, hash_str);
+        free(hash_str);
     }
-    printf("PAYMENT-HASH: %s\n", hash_str);
-    free(hash_str);
+    strcat(result, ";");
 
-    // Amount
+    strcat(result, "AMOUNT=");
     if (invoice->msat) {
-        printf("AMOUNT: %ld\n", invoice->msat->millisatoshis);
-    } else {
-        printf("AMOUNT: Not specified in the invoice.\n");
+        char amount_str[32];
+        snprintf(amount_str, sizeof(amount_str), "%ld", invoice->msat->millisatoshis);
+        strcat(result, amount_str);
     }
+    strcat(result, ";");
 
-    // Description
-    printf("DESCRIPTION: %s\n", invoice->description);
+    strcat(result, "DESCRIPTION=");
+    if (invoice->description) {
+        strcat(result, invoice->description);
+    }
+    strcat(result, ";");
 
-    // Destination pubkey
     if (!pubkey_from_node_id(&key, &invoice->receiver_id)) {
-        fprintf(stderr, "Failed to extract pubkey from node_id\n");
         tal_free(invoice);
-        return false;
+        free(result);
+        return strdup("");
     }
 
     u8 compressed[33];
-    size_t len = sizeof(compressed);
-
     pubkey_to_der(compressed, &key);
-
-    char* destination_str = hex_encode(compressed, len);
-    if (!destination_str) {
-        perror("Failed to allocate memory for compressed pubkey string");
-        tal_free(invoice);
-        return false;
+    char* recipient_str = hex_encode(compressed, 33);
+    strcat(result, "RECIPIENT=");
+    if (recipient_str) {
+        strcat(result, recipient_str);
+        free(recipient_str);
     }
+    strcat(result, ";");
 
-    printf("RECIPIENT: %s\n", destination_str);
-    free(destination_str);
+    char expiry_str[32];
+    snprintf(expiry_str, sizeof(expiry_str), "%ld", invoice->expiry);
+    strcat(result, "EXPIRY=");
+    strcat(result, expiry_str);
+    strcat(result, ";");
 
-    printf("EXPIRY: %ld\n", invoice->expiry);
+    char timestamp_str[32];
+    snprintf(timestamp_str, sizeof(timestamp_str), "%ld", invoice->timestamp);
+    strcat(result, "TIMESTAMP=");
+    strcat(result, timestamp_str);
+    strcat(result, ";");
 
-    printf("TIMESTAMP: %ld\n", invoice->timestamp);
+    char routing_str[32];
+    snprintf(routing_str, sizeof(routing_str), "%zu", tal_count(invoice->routes));
+    strcat(result, "ROUTING_HINTS=");
+    strcat(result, routing_str);
+    strcat(result, ";");
 
-    printf("ROUTING HINTS: %zu\n", tal_count(invoice->routes));
-
-    printf("MIN CLTV: %u\n", invoice->min_final_cltv_expiry);
+    char cltv_str[16];
+    snprintf(cltv_str, sizeof(cltv_str), "%u", invoice->min_final_cltv_expiry);
+    strcat(result, "MIN_CLTV=");
+    strcat(result, cltv_str);
 
     tal_free(invoice);
-    return true;
+    return result;
 }
