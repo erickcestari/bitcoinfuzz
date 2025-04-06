@@ -66,9 +66,7 @@ func LndDeserializeInvoice(cInvoiceStr *C.char) *C.char {
 	sb.WriteString(fmt.Sprintf(";ROUTING_HINTS=%d", len(invoice.RouteHints)))
 
 	sb.WriteString(";MIN_CLTV=")
-	if invoice.MinFinalCLTVExpiry() > 0 {
-		sb.WriteString(fmt.Sprintf("%d", invoice.MinFinalCLTVExpiry()))
-	}
+	sb.WriteString(fmt.Sprintf("%d", invoice.MinFinalCLTVExpiry()))
 
 	return C.CString(sb.String())
 }
