@@ -39,6 +39,7 @@ jobs:
       - run: |
           python -m pip install --upgrade pip
           pip install -r modules/embit/embit_lib/requirements.txt
+          pip install mako
 
       - name: Install LLVM and Clang
         run: |
@@ -151,7 +152,7 @@ jobs:
 
       - name: Test - deserialize_invoice
         run: |
-          export CXXFLAGS="-DLDK -DLND -DNLIGHTNING"
+          export CXXFLAGS="-DLDK -DLND -DNLIGHTNING -DCLIGHTNING"
           make
           ASAN_OPTIONS=detect_leaks=0 FUZZ=deserialize_invoice ./bitcoinfuzz -runs=100
 
