@@ -131,6 +131,15 @@ make
 export CXXFLAGS="$CXXFLAGS -DNLIGHTNING"
 ```
 
+### Eclair
+
+```bash
+git submodule update --init --recursive external/eclair
+cd modules/eclair
+make
+export CXXFLAGS="$CXXFLAGS -DECLAIR"
+```
+
 Once the modules are compiled, you can compile bitcoinfuzz and execute it:
 ```bash
 make
