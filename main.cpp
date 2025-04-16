@@ -28,6 +28,10 @@
 #include <modules/ldk/module.h>
 #endif
 
+#ifdef ECLAIR
+#include <modules/eclair/module.h>
+#endif
+
 #ifdef NLIGHTNING
 #include <modules/nlightning/module.h>
 #endif
@@ -351,6 +355,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
 #endif
 #ifdef CLIGHTNING
   driver->LoadModule(std::make_shared<bitcoinfuzz::module::CLightning>());
+#endif
+#ifdef ECLAIR
+  driver->LoadModule(std::make_shared<bitcoinfuzz::module::Eclair>());
 #endif
 
   driver->Run(Data, Size, target);
