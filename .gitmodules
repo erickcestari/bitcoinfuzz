@@ -1,0 +1,4 @@
+[submodule "external/eclair"]
+	path = external/eclair
+	url = https://github.com/ACINQ/eclair.git
+	ignore = all

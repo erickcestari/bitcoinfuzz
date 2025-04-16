@@ -1,9 +1,10 @@
 all: bitcoinfuzz
 
 CXX := clang++
-CXXFLAGS += -fsanitize=address,fuzzer -Wall -Wextra -std=c++20 -I include -I .
+CXXFLAGS += -fsanitize=address,fuzzer -Wall -Wextra -std=c++20 -I include -I . -L$(JAVA_HOME)/lib/server -ljvm -Wl,-rpath,$(JAVA_HOME)/lib/server
 MODULES := $(wildcard modules/*/module.a)
 UNAME_S := $(shell uname -s)
+JAVA_HOME ?= $(shell readlink -f $(shell which javac) | sed "s:/bin/javac::")
 
 # Get Python linking flags if the embit module is being used (DEMBIT is defined)
 PYTHON_LDFLAGS = $(shell if echo "$(CXXFLAGS)" | grep -q "\-DEMBIT"; then python3-config --ldflags --embed; fi)
