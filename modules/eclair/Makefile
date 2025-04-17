@@ -8,7 +8,6 @@ CXXFLAGS += -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(OS_NAME)
 
 ROOT_DIR := $(realpath $(dir $(lastword $(MAKEFILE_LIST)))/../..)
 ECLAIR_DIR := $(ROOT_DIR)/external/eclair
-ECLAIR_ZIP_BUILD := $(shell find $(ECLAIR_DIR)/eclair-node/target -name "eclair-node*.zip" | head -n 1)
 
 all: module.a
 
@@ -22,8 +21,9 @@ eclair.zip:
 	@echo "Building eclair in $(ECLAIR_DIR)..."
 	cd $(ECLAIR_DIR) && ./mvnw package -pl eclair-node -am -Dmaven.test.skip=true -DskipTests
 
-	@echo "Copying .zip in eclair.zip..."
-	cp $(ECLAIR_ZIP_BUILD) eclair.zip
+	@ECLAIR_ZIP_BUILD=$$(find $(ECLAIR_DIR)/eclair-node/target -name "eclair-node*.zip" | head -n 1); \
+	echo "Copying $$ECLAIR_ZIP_BUILD to eclair.zip..."; \
+	cp $$ECLAIR_ZIP_BUILD eclair.zip
 
 module.a: lib module.o
 	$(AR) rcs $@ module.o
