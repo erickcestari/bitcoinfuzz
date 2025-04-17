@@ -8,18 +8,22 @@ CXXFLAGS += -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(OS_NAME)
 
 ROOT_DIR := $(realpath $(dir $(lastword $(MAKEFILE_LIST)))/../..)
 ECLAIR_DIR := $(ROOT_DIR)/external/eclair
-ECLAIR_JAR := $(shell find $(ECLAIR_DIR)/eclair-core/target -name "eclair-core_*SNAPSHOT.jar" | head -n 1)
+ECLAIR_ZIP_BUILD := $(shell find $(ECLAIR_DIR)/eclair-core/target -name "eclair-core_*.zip" | head -n 1)
 
 all: module.a
 
-eclair.jar:
+eclair_extracted: eclair.zip
+	mkdir -p eclair_extracted
+	unzip -o eclair.zip -d eclair_extracted
+
+eclair.zip:
 	@echo "Building eclair in $(ECLAIR_DIR)..."
 	cd $(ECLAIR_DIR) && ./mvnw package -pl eclair-core -am -Dmaven.test.skip=true -DskipTests
 
 	@echo "Copying .JAR in $(LIGHTNING_DIR)..."
-	cp $(ECLAIR_JAR) eclair.jar
+	cp $(ECLAIR_ZIP_BUILD) eclair.zip
 
-module.a: eclair.jar module.o
+module.a: eclair_extracted module.o
 	$(AR) rcs $@ module.o
 	ranlib $@
 

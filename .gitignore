@@ -10,6 +10,7 @@ obj/
 *.dylib
 *.so
 *.jar
+*.zip
 __pycache__
 main.py
 corpus/

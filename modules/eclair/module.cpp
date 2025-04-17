@@ -5,6 +5,10 @@
 #include <string>
 #include <optional>
 #include <iostream>
+#include <filesystem>
+#include <string>
+#include <sstream>
+#include <iostream>
 
 // Global variables for JNI
 static JavaVM *jvm = nullptr;       // Java VM
@@ -12,7 +16,24 @@ static JNIEnv *env = nullptr;       // JNI environment
 static jclass invoiceClass = nullptr; // Bolt11Invoice class reference
 static jmethodID deserializeMethod = nullptr; // deserialize method reference
 
-// Function to initialize the JVM and cache method references
+namespace fs = std::filesystem;
+
+std::string build_classpath(const std::string& libDir = "./modules/eclair/lib") {
+    std::ostringstream cp;
+    cp << "-Djava.class.path=";
+    bool first = true;
+
+    for (const auto& entry : fs::directory_iterator(libDir)) {
+        if (entry.path().extension() == ".jar") {
+            if (!first) cp << ":";
+            cp << entry.path().string();
+            first = false;
+        }
+    }
+
+    return cp.str();
+}
+
 bool init_jvm() {
     if (jvm != nullptr) {
         return true; // Already initialized
@@ -23,7 +44,8 @@ bool init_jvm() {
     JavaVMOption options[2];
     
     // Set classpath to include the Eclair JAR
-    options[0].optionString = const_cast<char*>("-Djava.class.path=./eclair.jar:/usr/share/scala/lib/scala-library.jar");
+    std::string classpathStr = build_classpath("./modules/eclair/lib");
+    options[0].optionString = const_cast<char*>(classpathStr.c_str());
     
     // Adjust heap size if needed
     options[1].optionString = const_cast<char*>("-Xmx512m");
@@ -39,10 +61,8 @@ bool init_jvm() {
         std::cerr << "Failed to create JVM: " << res << std::endl;
         return false;
     }
-    
-    // Find the Bolt11Invoice class
-    jclass localInvoiceClass = env->FindClass("fr/acinq/eclair/payment/Bolt11Invoice");
-    if (localInvoiceClass == nullptr) {
+    jclass localInvoiceObjectClass = env->FindClass("fr/acinq/eclair/payment/Bolt11Invoice");
+    if (localInvoiceObjectClass == nullptr) {
         std::cerr << "Failed to find Bolt11Invoice class" << std::endl;
         if (env->ExceptionCheck()) {
             env->ExceptionDescribe();
@@ -50,27 +70,14 @@ bool init_jvm() {
         }
         return false;
     }
+    invoiceClass = static_cast<jclass>(env->NewGlobalRef(localInvoiceObjectClass));
+    env->DeleteLocalRef(localInvoiceObjectClass);
     
-    // Create a global reference to the class (so it's not garbage collected)
-    invoiceClass = static_cast<jclass>(env->NewGlobalRef(localInvoiceClass));
-    env->DeleteLocalRef(localInvoiceClass);
-    
-    // Find the deserialize method - note we need to check the exact signature
-    // The deserialize method is likely static, so the signature would be:
-    // (Ljava/lang/String;)Lfr/acinq/eclair/payment/Bolt11Invoice;
-    deserializeMethod = env->GetStaticMethodID(invoiceClass, "apply", "(Ljava/lang/String;)Lfr/acinq/eclair/payment/Bolt11Invoice;");
-    
-    // If deserialize isn't found, try other common method names in Scala for "companion object"
-    if (deserializeMethod == nullptr) {
-        deserializeMethod = env->GetStaticMethodID(invoiceClass, "decode", "(Ljava/lang/String;)Lfr/acinq/eclair/payment/Bolt11Invoice;");
-    }
+    // Use GetStaticMethodID instead of GetMethodID because fromString is a static method
+    deserializeMethod = env->GetStaticMethodID(invoiceClass, "fromString", "(Ljava/lang/String;)Lscala/util/Try;");
     
     if (deserializeMethod == nullptr) {
-        deserializeMethod = env->GetStaticMethodID(invoiceClass, "fromString", "(Ljava/lang/String;)Lfr/acinq/eclair/payment/Bolt11Invoice;");
-    }
-    
-    if (deserializeMethod == nullptr) {
-        std::cerr << "Failed to find deserialize method" << std::endl;
+        std::cerr << "Failed to find fromString method" << std::endl;
         if (env->ExceptionCheck()) {
             env->ExceptionDescribe();
             env->ExceptionClear();
@@ -80,6 +87,7 @@ bool init_jvm() {
     
     return true;
 }
+
 
 // Clean up JVM resources
 void cleanup_jvm() {
