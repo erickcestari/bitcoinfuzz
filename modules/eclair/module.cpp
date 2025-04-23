@@ -332,12 +332,16 @@ std::optional<std::string> eclair_des_invoice(const char *invoiceStr)
                 jmethodID toSecondsMethod = currEnv->GetMethodID(durationClass, "toSeconds", "()J");
                 jlong expirySeconds = currEnv->CallLongMethod(expiryObj, toSecondsMethod);
 
+                std::cout << "expirySeconds: " << expirySeconds << std::endl;
+
                 // 6. Get timestamp
-                jmethodID timestampMethod = currEnv->GetMethodID(invoiceClass, "createdAt", "()Lfr/acinq/bitcoin/TimestampSecond;");
+                jmethodID timestampMethod = currEnv->GetMethodID(invoiceClass, "createdAt", "()Lfr/acinq/eclair/TimestampSecond;");
                 jobject timestampObj = currEnv->CallObjectMethod(invoiceObj, timestampMethod);
                 jclass timestampClass = currEnv->GetObjectClass(timestampObj);
                 jmethodID toSecondsTimestampMethod = currEnv->GetMethodID(timestampClass, "toLong", "()J");
                 jlong timestamp = currEnv->CallLongMethod(timestampObj, toSecondsTimestampMethod);
+
+                std::cout << "Timestamp: " << timestamp << std::endl;
 
                 // 7. Get routing hints count
                 jmethodID routingInfoMethod = currEnv->GetMethodID(invoiceClass, "routingInfo", "()Lscala/collection/Seq;");
