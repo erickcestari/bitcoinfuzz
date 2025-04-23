@@ -1,6 +1,4 @@
 #include "module.h"
-
-
 #include <jni.h>
 #include <string>
 #include <optional>
@@ -88,7 +86,6 @@ bool init_jvm() {
     return true;
 }
 
-
 // Clean up JVM resources
 void cleanup_jvm() {
     if (jvm != nullptr) {
@@ -104,9 +101,7 @@ void cleanup_jvm() {
     }
 }
 
-// The actual function to deserialize the invoice
 std::optional<std::string> eclair_des_invoice(const char* invoiceStr) {
-    std::cout << "Invoice: " << invoiceStr << std::endl;
     // Initialize JVM if not already done
     if (!init_jvm()) {
         return std::nullopt;
@@ -130,16 +125,15 @@ std::optional<std::string> eclair_des_invoice(const char* invoiceStr) {
     
     // Convert C string to Java string
     jstring jInvoiceStr = currEnv->NewStringUTF(invoiceStr);
-
-    std::cout << "string converted: " << invoiceStr << std::endl;
     
-    // Call the deserialize method
+    // Call the fromString method to get the invoice object
     jobject invoiceObj = nullptr;
+    std::string formattedResult;
     
     try {
-        invoiceObj = currEnv->CallStaticObjectMethod(invoiceClass, deserializeMethod, jInvoiceStr);
+        // Get the Try object from invoiceClass.fromString(invoiceStr)
+        jobject tryObj = currEnv->CallStaticObjectMethod(invoiceClass, deserializeMethod, jInvoiceStr);
         
-        // Check for exceptions
         if (currEnv->ExceptionCheck()) {
             currEnv->ExceptionDescribe();
             currEnv->ExceptionClear();
@@ -152,50 +146,154 @@ std::optional<std::string> eclair_des_invoice(const char* invoiceStr) {
             return std::nullopt;
         }
         
-        // If deserialization was successful, get the string representation
-        if (invoiceObj != nullptr) {
-            // Get the toString method from the invoice object
-            jmethodID toStringMethod = currEnv->GetMethodID(invoiceClass, "toString", "()Ljava/lang/String;");
+        // Get the isSuccess method from scala.util.Try
+        jclass tryClass = currEnv->GetObjectClass(tryObj);
+        jmethodID isSuccessMethod = currEnv->GetMethodID(tryClass, "isSuccess", "()Z");
+        jboolean isSuccess = currEnv->CallBooleanMethod(tryObj, isSuccessMethod);
+        
+        if (isSuccess) {
+            // Get the get method from scala.util.Try
+            jmethodID getMethod = currEnv->GetMethodID(tryClass, "get", "()Ljava/lang/Object;");
+            invoiceObj = currEnv->CallObjectMethod(tryObj, getMethod);
             
-            if (toStringMethod != nullptr) {
-                jstring resultStr = static_cast<jstring>(currEnv->CallObjectMethod(invoiceObj, toStringMethod));
+            if (invoiceObj != nullptr) {
+                // Extract each required field from the invoice object
+                std::cout << "Invoice string: " << invoiceStr << std::endl;
                 
-                // Convert Java string to C++ string
-                const char *cstr = currEnv->GetStringUTFChars(resultStr, nullptr);
-                std::string result(cstr);
-                currEnv->ReleaseStringUTFChars(resultStr, cstr);
+                // 1. Get paymentHash
+                jmethodID paymentHashMethod = currEnv->GetMethodID(invoiceClass, "paymentHash", "()Lfr/acinq/bitcoin/scalacompat/ByteVector32;");
+                if (paymentHashMethod == nullptr) {
+                    std::cout << "Failed to find paymentHash method" << std::endl; 
+                }
+                jobject paymentHashObj = currEnv->CallObjectMethod(invoiceObj, paymentHashMethod);
+                if (paymentHashObj == nullptr) {
+                    std::cout << "Failed to find paymentHash obj" << std::endl; 
+                }
+                jclass byteVectorClass = currEnv->GetObjectClass(paymentHashObj);
+                if (byteVectorClass == nullptr) {
+                    std::cout << "Failed to find byteVectorClass" << std::endl; 
+                }
+                jmethodID toStringMethod = currEnv->GetMethodID(byteVectorClass, "toString", "()Ljava/lang/String;");
+                if (toStringMethod == nullptr) {
+                    std::cout << "Failed to find toStringMethod" << std::endl; 
+                }
+                jstring hashStr = (jstring)currEnv->CallObjectMethod(paymentHashObj, toStringMethod);
+                const char* hashCStr = currEnv->GetStringUTFChars(hashStr, nullptr);
+                std::string hash(hashCStr);
+                currEnv->ReleaseStringUTFChars(hashStr, hashCStr);
+
+                std::cout << "Payment hash: " << hash << std::endl;
                 
-                // Clean up local references
-                currEnv->DeleteLocalRef(resultStr);
-                currEnv->DeleteLocalRef(invoiceObj);
-                currEnv->DeleteLocalRef(jInvoiceStr);
+                // 2. Get amount
+                jmethodID amountOptMethod = currEnv->GetMethodID(invoiceClass, "amount_opt", "()Lscala/Option;");
+                jobject amountOptObj = currEnv->CallObjectMethod(invoiceObj, amountOptMethod);
+                jclass optionClass = currEnv->GetObjectClass(amountOptObj);
+                jmethodID isDefined = currEnv->GetMethodID(optionClass, "isDefined", "()Z");
+                jboolean hasAmount = currEnv->CallBooleanMethod(amountOptObj, isDefined);
                 
-                if (detach) {
-                    jvm->DetachCurrentThread();
+                std::string amount = "0";
+                if (hasAmount) {
+                    jmethodID getMethod = currEnv->GetMethodID(optionClass, "get", "()Ljava/lang/Object;");
+                    jobject amountObj = currEnv->CallObjectMethod(amountOptObj, getMethod);
+                    jclass millisatoshiClass = currEnv->GetObjectClass(amountObj);
+                    jmethodID toLongMethod = currEnv->GetMethodID(millisatoshiClass, "toLong", "()J");
+                    jlong amountLong = currEnv->CallLongMethod(amountObj, toLongMethod);
+                    amount = std::to_string(amountLong);
                 }
                 
-                return result;
+                // 3. Get description
+                jmethodID descriptionMethod = currEnv->GetMethodID(invoiceClass, "description", "()Lscala/util/Either;");
+                jobject descEitherObj = currEnv->CallObjectMethod(invoiceObj, descriptionMethod);
+                jclass eitherClass = currEnv->GetObjectClass(descEitherObj);
+                jmethodID isLeftMethod = currEnv->GetMethodID(eitherClass, "isLeft", "()Z");
+                jboolean isLeft = currEnv->CallBooleanMethod(descEitherObj, isLeftMethod);
+                
+                std::string description = "";
+                if (isLeft) {
+                    jmethodID leftMethod = currEnv->GetMethodID(eitherClass, "left", "()Ljava/lang/Object;");
+                    jstring descStr = (jstring)currEnv->CallObjectMethod(descEitherObj, leftMethod);
+                    if (descStr != nullptr) {
+                        const char* descCStr = currEnv->GetStringUTFChars(descStr, nullptr);
+                        description = descCStr;
+                        currEnv->ReleaseStringUTFChars(descStr, descCStr);
+                    }
+                }
+                
+                // 4. Get nodeId (recipient)
+                jmethodID nodeIdMethod = currEnv->GetMethodID(invoiceClass, "nodeId", "()Lfr/acinq/bitcoin/PublicKey;");
+                jobject nodeIdObj = currEnv->CallObjectMethod(invoiceObj, nodeIdMethod);
+                jclass pubKeyClass = currEnv->GetObjectClass(nodeIdObj);
+                jmethodID toHexPubMethod = currEnv->GetMethodID(pubKeyClass, "toString", "()Ljava/lang/String;");
+                jstring nodeIdStr = (jstring)currEnv->CallObjectMethod(nodeIdObj, toHexPubMethod);
+                const char* nodeIdCStr = currEnv->GetStringUTFChars(nodeIdStr, nullptr);
+                std::string nodeId(nodeIdCStr);
+                currEnv->ReleaseStringUTFChars(nodeIdStr, nodeIdCStr);
+                
+                // 5. Get expiry
+                jmethodID expiryMethod = currEnv->GetMethodID(invoiceClass, "relativeExpiry", "()Lscala/concurrent/duration/FiniteDuration;");
+                jobject expiryObj = currEnv->CallObjectMethod(invoiceObj, expiryMethod);
+                jclass durationClass = currEnv->GetObjectClass(expiryObj);
+                jmethodID toSecondsMethod = currEnv->GetMethodID(durationClass, "toSeconds", "()J");
+                jlong expirySeconds = currEnv->CallLongMethod(expiryObj, toSecondsMethod);
+                
+                // 6. Get timestamp
+                jmethodID timestampMethod = currEnv->GetMethodID(invoiceClass, "createdAt", "()Lfr/acinq/bitcoin/TimestampSecond;");
+                jobject timestampObj = currEnv->CallObjectMethod(invoiceObj, timestampMethod);
+                jclass timestampClass = currEnv->GetObjectClass(timestampObj);
+                jmethodID toSecondsTimestampMethod = currEnv->GetMethodID(timestampClass, "toLong", "()J");
+                jlong timestamp = currEnv->CallLongMethod(timestampObj, toSecondsTimestampMethod);
+                
+                // 7. Get routing hints count
+                jmethodID routingInfoMethod = currEnv->GetMethodID(invoiceClass, "routingInfo", "()Lscala/collection/Seq;");
+                jobject routingInfoObj = currEnv->CallObjectMethod(invoiceObj, routingInfoMethod);
+                jclass seqClass = currEnv->GetObjectClass(routingInfoObj);
+                jmethodID sizeMethod = currEnv->GetMethodID(seqClass, "size", "()I");
+                jint routingHints = currEnv->CallIntMethod(routingInfoObj, sizeMethod);
+                
+                // 8. Get min final CLTV expiry
+                jmethodID minCltvMethod = currEnv->GetMethodID(invoiceClass, "minFinalCltvExpiryDelta", "()Lfr/acinq/eclair/CltvExpiryDelta;");
+                jobject minCltvObj = currEnv->CallObjectMethod(invoiceObj, minCltvMethod);
+                jclass cltvClass = currEnv->GetObjectClass(minCltvObj);
+                jmethodID toIntMethod = currEnv->GetMethodID(cltvClass, "toInt", "()I");
+                jint minCltv = currEnv->CallIntMethod(minCltvObj, toIntMethod);
+                
+                // Format the result as required
+                formattedResult = "HASH=" + hash + ";" +
+                                "AMOUNT=" + amount + ";" +
+                                "DESCRIPTION=" + description + ";" +
+                                "RECIPIENT=" + nodeId + ";" +
+                                "EXPIRY=" + std::to_string(expirySeconds) + ";" +
+                                "TIMESTAMP=" + std::to_string(timestamp) + ";" +
+                                "ROUTING_HINTS=" + std::to_string(routingHints) + ";" +
+                                "MIN_CLTV=" + std::to_string(minCltv);
             }
+        }
+        
+        // Clean up local references
+        currEnv->DeleteLocalRef(tryObj);
+        currEnv->DeleteLocalRef(tryClass);
+        if (invoiceObj != nullptr) {
+            currEnv->DeleteLocalRef(invoiceObj);
         }
     } catch (...) {
         std::cerr << "Caught unknown exception during JNI call" << std::endl;
     }
     
-    // Clean up local references
-    if (invoiceObj != nullptr) {
-        currEnv->DeleteLocalRef(invoiceObj);
-    }
+    // Final cleanup
     currEnv->DeleteLocalRef(jInvoiceStr);
     
     if (detach) {
         jvm->DetachCurrentThread();
     }
     
-    return std::nullopt;
+    if (formattedResult.empty()) {
+        return std::nullopt;
+    }
+
+    std::cout << "Formatted result: " << formattedResult << std::endl;
+    
+    return formattedResult;
 }
-
-
-
 
 namespace bitcoinfuzz
 {
