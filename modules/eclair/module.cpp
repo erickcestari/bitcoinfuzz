@@ -344,11 +344,13 @@ std::optional<std::string> eclair_des_invoice(const char *invoiceStr)
                 std::cout << "Timestamp: " << timestamp << std::endl;
 
                 // 7. Get routing hints count
-                jmethodID routingInfoMethod = currEnv->GetMethodID(invoiceClass, "routingInfo", "()Lscala/collection/Seq;");
+                jmethodID routingInfoMethod = currEnv->GetMethodID(invoiceClass, "routingInfo", "()Lscala/collection/immutable/Seq;");
                 jobject routingInfoObj = currEnv->CallObjectMethod(invoiceObj, routingInfoMethod);
                 jclass seqClass = currEnv->GetObjectClass(routingInfoObj);
                 jmethodID sizeMethod = currEnv->GetMethodID(seqClass, "size", "()I");
                 jint routingHints = currEnv->CallIntMethod(routingInfoObj, sizeMethod);
+
+                std::cout << "routingHints: " << routingHints << std::endl;
 
                 // 8. Get min final CLTV expiry
                 jmethodID minCltvMethod = currEnv->GetMethodID(invoiceClass, "minFinalCltvExpiryDelta", "()Lfr/acinq/eclair/CltvExpiryDelta;");
