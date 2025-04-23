@@ -162,21 +162,9 @@ std::optional<std::string> eclair_des_invoice(const char* invoiceStr) {
                 
                 // 1. Get paymentHash
                 jmethodID paymentHashMethod = currEnv->GetMethodID(invoiceClass, "paymentHash", "()Lfr/acinq/bitcoin/scalacompat/ByteVector32;");
-                if (paymentHashMethod == nullptr) {
-                    std::cout << "Failed to find paymentHash method" << std::endl; 
-                }
                 jobject paymentHashObj = currEnv->CallObjectMethod(invoiceObj, paymentHashMethod);
-                if (paymentHashObj == nullptr) {
-                    std::cout << "Failed to find paymentHash obj" << std::endl; 
-                }
                 jclass byteVectorClass = currEnv->GetObjectClass(paymentHashObj);
-                if (byteVectorClass == nullptr) {
-                    std::cout << "Failed to find byteVectorClass" << std::endl; 
-                }
                 jmethodID toStringMethod = currEnv->GetMethodID(byteVectorClass, "toString", "()Ljava/lang/String;");
-                if (toStringMethod == nullptr) {
-                    std::cout << "Failed to find toStringMethod" << std::endl; 
-                }
                 jstring hashStr = (jstring)currEnv->CallObjectMethod(paymentHashObj, toStringMethod);
                 const char* hashCStr = currEnv->GetStringUTFChars(hashStr, nullptr);
                 std::string hash(hashCStr);
@@ -200,24 +188,41 @@ std::optional<std::string> eclair_des_invoice(const char* invoiceStr) {
                     jlong amountLong = currEnv->CallLongMethod(amountObj, toLongMethod);
                     amount = std::to_string(amountLong);
                 }
+
+                std::cout << "Amount: " << amount << std::endl;
                 
                 // 3. Get description
                 jmethodID descriptionMethod = currEnv->GetMethodID(invoiceClass, "description", "()Lscala/util/Either;");
+                std::cout << "descriptionMethod: " << descriptionMethod << std::endl;
                 jobject descEitherObj = currEnv->CallObjectMethod(invoiceObj, descriptionMethod);
+                std::cout << "descEitherObj: " << descEitherObj << std::endl;
                 jclass eitherClass = currEnv->GetObjectClass(descEitherObj);
+                std::cout << "eitherClass: " << eitherClass << std::endl;
                 jmethodID isLeftMethod = currEnv->GetMethodID(eitherClass, "isLeft", "()Z");
+                std::cout << "isLeftMethod: " << isLeftMethod << std::endl;
                 jboolean isLeft = currEnv->CallBooleanMethod(descEitherObj, isLeftMethod);
                 
                 std::string description = "";
                 if (isLeft) {
-                    jmethodID leftMethod = currEnv->GetMethodID(eitherClass, "left", "()Ljava/lang/Object;");
-                    jstring descStr = (jstring)currEnv->CallObjectMethod(descEitherObj, leftMethod);
-                    if (descStr != nullptr) {
-                        const char* descCStr = currEnv->GetStringUTFChars(descStr, nullptr);
-                        description = descCStr;
-                        currEnv->ReleaseStringUTFChars(descStr, descCStr);
+                    jclass leftClass = currEnv->FindClass("scala/util/Left");
+                    if (currEnv->IsInstanceOf(descEitherObj, leftClass)) {
+                        jmethodID valueMethod = currEnv->GetMethodID(leftClass, "value", "()Ljava/lang/Object;");
+                        jobject valueObj = currEnv->CallObjectMethod(descEitherObj, valueMethod);
+                        if (currEnv->ExceptionCheck()) {
+                            currEnv->ExceptionDescribe();
+                            currEnv->ExceptionClear();
+                        }
+                
+                        if (valueObj != nullptr) {
+                            jstring descStr = (jstring)valueObj;
+                            const char* descCStr = currEnv->GetStringUTFChars(descStr, nullptr);
+                            description = descCStr;
+                            currEnv->ReleaseStringUTFChars(descStr, descCStr);
+                        }
                     }
                 }
+
+                std ::cout << "Description: " << description << std::endl;
                 
                 // 4. Get nodeId (recipient)
                 jmethodID nodeIdMethod = currEnv->GetMethodID(invoiceClass, "nodeId", "()Lfr/acinq/bitcoin/PublicKey;");
@@ -228,6 +233,8 @@ std::optional<std::string> eclair_des_invoice(const char* invoiceStr) {
                 const char* nodeIdCStr = currEnv->GetStringUTFChars(nodeIdStr, nullptr);
                 std::string nodeId(nodeIdCStr);
                 currEnv->ReleaseStringUTFChars(nodeIdStr, nodeIdCStr);
+
+                std::cout << "Node ID: " << nodeId << std::endl;
                 
                 // 5. Get expiry
                 jmethodID expiryMethod = currEnv->GetMethodID(invoiceClass, "relativeExpiry", "()Lscala/concurrent/duration/FiniteDuration;");
