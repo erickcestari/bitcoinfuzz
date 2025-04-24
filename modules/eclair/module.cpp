@@ -134,7 +134,7 @@ std::optional<std::string> eclair_des_invoice(const char *invoiceStr)
     // Initialize JVM if not already done
     if (!init_jvm())
     {
-        return std::nullopt;
+        return "";
     }
 
     // Attach to the current thread if needed
@@ -147,14 +147,14 @@ std::optional<std::string> eclair_des_invoice(const char *invoiceStr)
         if (jvm->AttachCurrentThread((void **)&currEnv, nullptr) != JNI_OK)
         {
             std::cerr << "Failed to attach thread to JVM" << std::endl;
-            return std::nullopt;
+            return "";
         }
         detach = true;
     }
     else if (getEnvStat != JNI_OK)
     {
         std::cerr << "Failed to get JNI environment" << std::endl;
-        return std::nullopt;
+        return "";
     }
 
     // Convert C string to Java string
@@ -179,7 +179,7 @@ std::optional<std::string> eclair_des_invoice(const char *invoiceStr)
                 jvm->DetachCurrentThread();
             }
 
-            return std::nullopt;
+            return "";
         }
 
         // Get the isSuccess method from scala.util.Try
@@ -201,19 +201,19 @@ std::optional<std::string> eclair_des_invoice(const char *invoiceStr)
             jmethodID getMsgMethod = currEnv->GetMethodID(throwableClass, "getMessage", "()Ljava/lang/String;");
             jstring errorMsgStr = (jstring)currEnv->CallObjectMethod(errorObj, getMsgMethod);
 
-            std::string errorMessage = "Unknown error deserializing invoice";
+            // std::string errorMessage = "Unknown error deserializing invoice";
 
-            if (errorMsgStr != nullptr)
-            {
-                const char *errorMsg = currEnv->GetStringUTFChars(errorMsgStr, nullptr);
-                errorMessage = "Error: " + std::string(errorMsg);
-                std::cerr << "Error deserializing invoice: " << errorMsg << std::endl;
-                currEnv->ReleaseStringUTFChars(errorMsgStr, errorMsg);
-            }
-            else
-            {
-                std::cerr << errorMessage << std::endl;
-            }
+            // if (errorMsgStr != nullptr)
+            // {
+            //     const char *errorMsg = currEnv->GetStringUTFChars(errorMsgStr, nullptr);
+            //     errorMessage = "Error: " + std::string(errorMsg);
+            //     std::cerr << "Error deserializing invoice: " << errorMsg << std::endl;
+            //     currEnv->ReleaseStringUTFChars(errorMsgStr, errorMsg);
+            // }
+            // else
+            // {
+            //     std::cerr << errorMessage << std::endl;
+            // }
 
             // Clean up error-related references
             currEnv->DeleteLocalRef(failureObj);
@@ -368,10 +368,8 @@ std::optional<std::string> eclair_des_invoice(const char *invoiceStr)
 
     if (formattedResult.empty())
     {
-        return std::nullopt;
+        return "";
     }
-
-    std::cout << "Formatted result: " << invoiceStr <<std::endl;
 
     return formattedResult;
 }
