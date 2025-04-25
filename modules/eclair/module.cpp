@@ -68,14 +68,35 @@ public:
     }
 };
 
-// Global JNI variables
-static JavaVM* jvm = nullptr;                 // Java VM
-static jclass invoiceClass = nullptr;         // Bolt11Invoice class reference (global ref)
-static jmethodID deserializeMethod = nullptr; // deserialize method reference
+static JavaVM* jvm = nullptr;
+static jclass invoiceClass = nullptr;
+static jmethodID deserializeMethod = nullptr;
 
 static std::string cached_classpath;
 
-// Helper class for JNI method calls
+static const std::string build_classpath() {
+    if (!cached_classpath.empty()) return cached_classpath;
+    
+    std::ostringstream cp;
+    cp << "-Djava.class.path=";
+    bool first = true;
+    
+    try {
+        for (const auto& entry : fs::directory_iterator("./modules/eclair/lib")) {
+            if (entry.path().extension() == ".jar") {
+                if (!first) cp << ":";
+                cp << entry.path().string();
+                first = false;
+            }
+        }
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "Filesystem error: " << e.what() << std::endl;
+    }
+    
+    cached_classpath = cp.str();
+    return cached_classpath;
+}
+
 class JNIHelper {
 private:
     JNIEnv* env;
@@ -104,7 +125,6 @@ public:
         return result;
     }
 
-    // Get method ID with error checking
     jmethodID getMethodID(jclass clazz, const char* name, const char* sig, bool isStatic = false) const {
         jmethodID method = isStatic ? 
             env->GetStaticMethodID(clazz, name, sig) : 
@@ -117,7 +137,6 @@ public:
         return method;
     }
 
-    // Call object method with error checking
     jobject callObjectMethod(jobject obj, jmethodID method, ...) const {
         va_list args;
         va_start(args, method);
@@ -128,7 +147,6 @@ public:
         return result;
     }
 
-    // Call static object method with error checking
     jobject callStaticObjectMethod(jclass clazz, jmethodID method, ...) const {
         va_list args;
         va_start(args, method);
@@ -139,7 +157,6 @@ public:
         return result;
     }
 
-    // Call primitive type methods with error checking
     jboolean callBooleanMethod(jobject obj, jmethodID method) const {
         jboolean result = env->CallBooleanMethod(obj, method);
         checkException();
@@ -158,7 +175,6 @@ public:
         return result;
     }
 
-    // Check and clear any JNI exceptions
     bool checkException() const {
         if (env->ExceptionCheck()) {
             env->ExceptionDescribe();
@@ -168,7 +184,6 @@ public:
         return false;
     }
 
-    // Find class with error checking
     jclass findClass(const char* name) const {
         jclass clazz = env->FindClass(name);
         if (!clazz) {
@@ -178,7 +193,6 @@ public:
         return clazz;
     }
 
-    // Create a global reference with error checking
     jobject createGlobalRef(jobject obj) const {
         if (!obj) return nullptr;
         
@@ -190,45 +204,17 @@ public:
     }
 };
 
-// Build Java classpath from JAR files in directory
-static const std::string build_classpath() {
-    if (!cached_classpath.empty()) return cached_classpath;
-    
-    std::ostringstream cp;
-    cp << "-Djava.class.path=";
-    bool first = true;
-    
-    try {
-        for (const auto& entry : fs::directory_iterator("./modules/eclair/lib")) {
-            if (entry.path().extension() == ".jar") {
-                if (!first) cp << ":";
-                cp << entry.path().string();
-                first = false;
-            }
-        }
-    } catch (const fs::filesystem_error& e) {
-        std::cerr << "Filesystem error: " << e.what() << std::endl;
-    }
-    
-    cached_classpath = cp.str();
-    return cached_classpath;
-}
-
-// Initialize the JVM and required Java classes/methods
 bool init_jvm() {
     if (jvm != nullptr) {
-        return true; // Already initialized
+        return true;
     }
 
-    // JVM initialization arguments
     JavaVMInitArgs vm_args;
     JavaVMOption options[2];
 
-    // Set classpath to include the Eclair JAR
     std::string classpathStr = build_classpath();
     options[0].optionString = const_cast<char*>(classpathStr.c_str());
 
-    // Adjust heap size if needed
     options[1].optionString = const_cast<char*>("-Xmx512m");
 
     vm_args.version = JNI_VERSION_1_8;
@@ -246,13 +232,11 @@ bool init_jvm() {
 
     JNIHelper helper(env);
     
-    // Find and store the Bolt11Invoice class
     jclass localInvoiceClass = helper.findClass("fr/acinq/eclair/payment/Bolt11Invoice");
     if (!localInvoiceClass) {
         return false;
     }
     
-    // Create a global reference to the class
     invoiceClass = static_cast<jclass>(helper.createGlobalRef(localInvoiceClass));
     env->DeleteLocalRef(localInvoiceClass);
     
@@ -260,7 +244,6 @@ bool init_jvm() {
         return false;
     }
 
-    // Get the fromString static method
     deserializeMethod = helper.getMethodID(invoiceClass, "fromString", "(Ljava/lang/String;)Lscala/util/Try;", true);
     if (!deserializeMethod) {
         return false;
@@ -269,14 +252,12 @@ bool init_jvm() {
     return true;
 }
 
-// Process a scala.util.Try result object
 std::optional<jobject> processTryResult(JNIEnv* env, jobject tryObj) {
     if (!tryObj) return std::nullopt;
     
     JNIHelper helper(env);
     LocalRefGuard tryGuard(env, tryObj);
     
-    // Get the Try class and methods
     jclass tryClass = env->GetObjectClass(tryObj);
     LocalRefGuard tryClassGuard(env, tryClass);
     
@@ -285,11 +266,9 @@ std::optional<jobject> processTryResult(JNIEnv* env, jobject tryObj) {
     
     jboolean isSuccess = helper.callBooleanMethod(tryObj, isSuccessMethod);
     if (!isSuccess) {
-        // Could extract error message here if needed
         return std::nullopt;
     }
     
-    // Get the value from the successful Try
     jmethodID getMethod = helper.getMethodID(tryClass, "get", "()Ljava/lang/Object;");
     if (!getMethod) return std::nullopt;
     
@@ -297,14 +276,11 @@ std::optional<jobject> processTryResult(JNIEnv* env, jobject tryObj) {
     return result ? std::make_optional(result) : std::nullopt;
 }
 
-// Parse a Bolt11 invoice and extract its fields
 std::optional<std::string> eclair_des_invoice(const char* invoiceStr) {
-    // Initialize JVM if not already done
     if (!init_jvm() || !jvm) {
         return "";
     }
 
-    // Attach to the current thread if needed
     JNIThreadGuard threadGuard(jvm);
     JNIEnv* env = threadGuard.getEnv();
     if (!env) {
@@ -315,7 +291,6 @@ std::optional<std::string> eclair_des_invoice(const char* invoiceStr) {
     std::string formattedResult;
 
     try {
-        // Convert C string to Java string
         jstring jInvoiceStr = helper.toJString(invoiceStr);
         LocalRefGuard jInvoiceStrGuard(env, jInvoiceStr);
         
@@ -323,13 +298,11 @@ std::optional<std::string> eclair_des_invoice(const char* invoiceStr) {
             return "";
         }
 
-        // Call the static method to deserialize the invoice
         jobject tryObj = helper.callStaticObjectMethod(invoiceClass, deserializeMethod, jInvoiceStr);
         if (!tryObj) {
             return "";
         }
-
-        // Process the Try result
+        
         auto invoiceObjOpt = processTryResult(env, tryObj);
         if (!invoiceObjOpt) {
             return "";
@@ -338,7 +311,6 @@ std::optional<std::string> eclair_des_invoice(const char* invoiceStr) {
         jobject invoiceObj = *invoiceObjOpt;
         LocalRefGuard invoiceObjGuard(env, invoiceObj);
         
-        // Extract invoice fields
         // 1. Payment Hash
         jmethodID paymentHashMethod = helper.getMethodID(invoiceClass, "paymentHash", "()Lfr/acinq/bitcoin/scalacompat/ByteVector32;");
         jobject paymentHashObj = helper.callObjectMethod(invoiceObj, paymentHashMethod);
@@ -464,7 +436,6 @@ std::optional<std::string> eclair_des_invoice(const char* invoiceStr) {
         jmethodID toIntMethod = helper.getMethodID(cltvClass, "toInt", "()I");
         jint minCltv = helper.callIntMethod(minCltvObj, toIntMethod);
 
-        // Format the result as required
         formattedResult = "HASH=" + hash + ";" +
                           "AMOUNT=" + amount + ";" +
                           "DESCRIPTION=" + description + ";" +
