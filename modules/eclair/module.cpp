@@ -73,6 +73,8 @@ static JavaVM* jvm = nullptr;                 // Java VM
 static jclass invoiceClass = nullptr;         // Bolt11Invoice class reference (global ref)
 static jmethodID deserializeMethod = nullptr; // deserialize method reference
 
+static std::string cached_classpath;
+
 // Helper class for JNI method calls
 class JNIHelper {
 private:
@@ -189,13 +191,15 @@ public:
 };
 
 // Build Java classpath from JAR files in directory
-std::string build_classpath(const std::string& libDir = "./modules/eclair/lib") {
+static const std::string build_classpath() {
+    if (!cached_classpath.empty()) return cached_classpath;
+    
     std::ostringstream cp;
     cp << "-Djava.class.path=";
     bool first = true;
-
+    
     try {
-        for (const auto& entry : fs::directory_iterator(libDir)) {
+        for (const auto& entry : fs::directory_iterator("./modules/eclair/lib")) {
             if (entry.path().extension() == ".jar") {
                 if (!first) cp << ":";
                 cp << entry.path().string();
@@ -205,8 +209,9 @@ std::string build_classpath(const std::string& libDir = "./modules/eclair/lib") 
     } catch (const fs::filesystem_error& e) {
         std::cerr << "Filesystem error: " << e.what() << std::endl;
     }
-
-    return cp.str();
+    
+    cached_classpath = cp.str();
+    return cached_classpath;
 }
 
 // Initialize the JVM and required Java classes/methods
@@ -220,7 +225,7 @@ bool init_jvm() {
     JavaVMOption options[2];
 
     // Set classpath to include the Eclair JAR
-    std::string classpathStr = build_classpath("./modules/eclair/lib");
+    std::string classpathStr = build_classpath();
     options[0].optionString = const_cast<char*>(classpathStr.c_str());
 
     // Adjust heap size if needed
