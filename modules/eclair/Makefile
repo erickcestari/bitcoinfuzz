@@ -1,8 +1,13 @@
 CXX = clang++
 CXXFLAGS += -Wall -Wextra -std=c++20 -fPIC  -I ../../include
 
-JAVA_HOME ?= $(shell readlink -f $(shell which javac) | sed "s:/bin/javac::")
 OS_NAME := $(shell uname | tr '[:upper:]' '[:lower:]')
+
+ifeq ($(OS_NAME),darwin)
+    JAVA_HOME ?= $(shell /usr/libexec/java_home)
+else
+    JAVA_HOME ?= $(shell dirname $$(dirname $$(readlink -f $$(which javac))))
+endif
 
 CXXFLAGS += -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(OS_NAME)
 
