@@ -18,7 +18,11 @@ all: module.a
 
 $(LIGHTNING_DIR)/config.vars:
 	@echo "Running ./configure in $(LIGHTNING_DIR)..."
-	cd $(LIGHTNING_DIR) && ./configure --enable-address-sanitizer --enable-fuzzing --disable-valgrind CC=clang
+	@if [ "$(shell uname)" = "Darwin" ]; then \
+		cd $(LIGHTNING_DIR) && ./configure --enable-address-sanitizer --disable-compat --enable-fuzzing --disable-valgrind CC=cc; \
+	else \
+		cd $(LIGHTNING_DIR) && ./configure --enable-address-sanitizer --disable-compat --enable-fuzzing --disable-valgrind CC=clang; \
+	fi
 
 
 libcln.a: $(LIGHTNING_DIR)/config.vars
