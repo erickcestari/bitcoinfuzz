@@ -184,12 +184,6 @@ jobs:
           make
           FUZZ=script_asm ./bitcoinfuzz -runs=0
 
-      - name: Test - deserialize_invoice
-        run: |
-          export CXXFLAGS="-DLDK -DLND -DCLIGHTNING -DCUSTOM_MUTATOR_BOLT11"
-          make clean ./modules/bitcoin/Makefile
-          makes
-          ASAN_OPTIONS=detect_leaks=0 FUZZ=deserialize_invoice ./bitcoinfuzz -runs=100
 
       - name: Test - address_parse
         run: |
@@ -202,3 +196,12 @@ jobs:
           export CXXFLAGS="-DEMBIT -DRUST_BITCOIN -DBTCD"
           make
           ASAN_OPTIONS=detect_leaks=0 FUZZ=psbt_parse ./bitcoinfuzz -runs=100
+
+      - name: Test - deserialize_invoice
+        run: |
+          export CXXFLAGS="-DLDK -DLND -DCLIGHTNING -DCUSTOM_MUTATOR_BOLT11"
+          cd ./modules/bitcoin
+          make clean
+          cd ../../
+          make
+          ASAN_OPTIONS=detect_leaks=0 FUZZ=deserialize_invoice ./bitcoinfuzz -runs=100
