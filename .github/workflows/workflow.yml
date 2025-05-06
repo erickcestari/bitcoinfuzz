@@ -187,7 +187,8 @@ jobs:
       - name: Test - deserialize_invoice
         run: |
           export CXXFLAGS="-DLDK -DLND -DCLIGHTNING -DCUSTOM_MUTATOR_BOLT11"
-          make
+          make clean ./modules/bitcoin/Makefile
+          makes
           ASAN_OPTIONS=detect_leaks=0 FUZZ=deserialize_invoice ./bitcoinfuzz -runs=100
 
       - name: Test - address_parse
