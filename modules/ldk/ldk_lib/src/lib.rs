@@ -1,6 +1,10 @@
-use lightning_invoice::{
-    Bolt11InvoiceDescriptionRef, Bolt11SemanticError, Currency, ParseOrSemanticError,
+use lightning::bitcoin::constants::ChainHash;
+use lightning::bitcoin::Network;
+use lightning::bolt11_invoice::{
+    Bolt11Invoice, Bolt11InvoiceDescriptionRef, Bolt11SemanticError, Currency, ParseOrSemanticError,
 };
+use lightning::offers::invoice::Bolt12Invoice;
+use lightning::offers::offer;
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::{ffi::CStr, str::FromStr};
@@ -21,7 +25,7 @@ pub unsafe extern "C" fn ldk_des_invoice(input: *const std::os::raw::c_char) -> 
         Err(_) => return str_to_c_string(""),
     };
 
-    match lightning_invoice::Bolt11Invoice::from_str(c_str) {
+    match Bolt11Invoice::from_str(c_str) {
         Ok(invoice) => {
             if invoice.currency() != Currency::Bitcoin {
                 return str_to_c_string("");
@@ -89,6 +93,46 @@ pub unsafe extern "C" fn ldk_des_invoice(input: *const std::os::raw::c_char) -> 
         // and we need to maintain compatibility with these implementations
         Err(ParseOrSemanticError::SemanticError(Bolt11SemanticError::MultipleDescriptions)) => {
             std::ptr::null_mut()
+        }
+        Err(_) => str_to_c_string(""),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ldk_des_bolt12_invoice(input: *const std::os::raw::c_char) -> *mut c_char {
+    if input.is_null() {
+        return str_to_c_string("");
+    }
+
+    let c_str = CStr::from_ptr(input);
+    let bytes = c_str.to_bytes();
+
+    match Bolt12Invoice::try_from(bytes.to_vec()) {
+        Ok(invoice) => {
+            if invoice.chain() != ChainHash::using_genesis_block(Network::Bitcoin) {
+                return str_to_c_string("");
+            }
+            let mut result = String::new();
+
+            result.push_str("HASH=");
+            result.push_str(&invoice.payment_hash().to_string());
+
+            result.push_str(";AMOUNT=");
+            if let Some(amount) = invoice.amount() {
+                match amount {
+                    offer::Amount::Bitcoin { amount_msats } => {
+                        result.push_str(&amount_msats.to_string());
+                    }
+                    offer::Amount::Currency {
+                        iso4217_code: _,
+                        amount,
+                    } => {
+                        result.push_str(&amount.to_string());
+                    }
+                }
+            }
+
+            str_to_c_string(&result)
         }
         Err(_) => str_to_c_string(""),
     }
