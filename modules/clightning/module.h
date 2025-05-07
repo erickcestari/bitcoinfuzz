@@ -14,6 +14,7 @@ namespace bitcoinfuzz
         public:
             CLightning(void);
             std::optional<std::string> deserialize_invoice(std::string str) const override;
+            std::optional<std::string> deserialize_bolt12_invoice(std::string str) const override;
             ~CLightning() noexcept override = default;
         };
 

@@ -2,6 +2,7 @@
 
 extern "C" {
     #include "common/bolt11.h"
+    #include "common/bolt12.h"
     #include "bitcoin/pubkey.h"
     #include "common/node_id.h"
     #include "common/utils.h"
@@ -80,6 +81,33 @@ std::string clightning_des_invoice(const std::string& input) {
     return result.str();
 }
 
+std::string clightning_des_bolt12_invoice(const std::string& input) {
+    char* fail = nullptr;
+    const struct chainparams* params = chainparams_for_network("bitcoin");
+    const char *b12 = input.c_str();
+    size_t b12len = input.size();
+    std::unique_ptr<tlv_invoice, TalFree> invoice(
+        invoice_decode(nullptr, b12, b12len, nullptr, params, &fail)
+    );
+
+    if (!invoice) {
+        tal_free(fail);
+        return "";
+    }
+
+    std::ostringstream result;
+    result << "HASH=" << hex_encode(invoice->invoice_payment_hash->u.u8, 32) << ";";
+
+    result << "AMOUNT=";
+    if (invoice->invoice_amount) {
+        result << invoice->invoice_amount;
+    } else {
+        result << "0";
+    }
+
+    return result.str();
+}
+
 namespace bitcoinfuzz
 {
     namespace module
@@ -89,6 +117,11 @@ namespace bitcoinfuzz
         std::optional<std::string> CLightning::deserialize_invoice(std::string str) const
         {
             return clightning_des_invoice(str.c_str());
+        }
+
+        std::optional<std::string> CLightning::deserialize_bolt12_invoice(std::string str) const
+        {
+            return clightning_des_bolt12_invoice(str.c_str());
         }
     }
 }

@@ -52,4 +52,9 @@ namespace bitcoinfuzz
     {
         return std::nullopt;
     }
+
+    std::optional<std::string> BaseModule::deserialize_bolt12_invoice(std::string str) const
+    {
+        return std::nullopt;
+    }
 }

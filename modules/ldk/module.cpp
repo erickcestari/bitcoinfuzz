@@ -20,5 +20,15 @@ namespace bitcoinfuzz
             return result_str;
         }
 
+        std::optional<std::string> Ldk::deserialize_bolt12_invoice(std::string str) const
+        {
+            auto result = ldk_des_invoice(str.c_str());
+            if (result == nullptr) {
+                return std::nullopt;
+            }
+            std::string result_str(result);
+            ldk_free_string(result);
+            return result_str;
+        }
     }
 }
