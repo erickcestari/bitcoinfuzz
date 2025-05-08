@@ -6,6 +6,7 @@ extern "C" {
     #include "bitcoin/pubkey.h"
     #include "common/node_id.h"
     #include "common/utils.h"
+    #include "common/setup.h"
     #include <bitcoin/chainparams.h>
     #include <ccan/tal/tal.h>
 }
@@ -22,6 +23,8 @@ extern "C" {
 #include <iostream>
 #include <span>
 #include "module.h"
+
+void init(int *argc, char ***argv) { common_setup("fuzzer"); }
 
 struct TalFree {
     void operator()(void* ptr) const { tal_free(ptr); }
@@ -112,7 +115,9 @@ namespace bitcoinfuzz
 {
     namespace module
     {
-        CLightning::CLightning(void) : BaseModule("CLightning") {}
+        CLightning::CLightning(void) : BaseModule("CLightning") {
+            init(nullptr, nullptr);
+        }
 
         std::optional<std::string> CLightning::deserialize_invoice(std::string str) const
         {
