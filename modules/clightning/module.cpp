@@ -84,28 +84,80 @@ std::string clightning_des_invoice(const std::string& input) {
     return result.str();
 }
 
-std::string clightning_des_bolt12_invoice(const std::string& input) {
+std::string clightning_des_offer(const std::string& input) {
     char* fail = nullptr;
     const struct chainparams* params = chainparams_for_network("bitcoin");
     const char *b12 = input.c_str();
     size_t b12len = input.size();
-    std::unique_ptr<tlv_invoice, TalFree> invoice(
-        invoice_decode(nullptr, b12, b12len, nullptr, params, &fail)
+    std::unique_ptr<tlv_offer, TalFree> offer(
+        offer_decode(nullptr, b12, b12len, nullptr, params, &fail)
     );
 
-    if (!invoice) {
+    if (!offer) {
         tal_free(fail);
         return "";
     }
 
     std::ostringstream result;
-    result << "HASH=" << hex_encode(invoice->invoice_payment_hash->u.u8, 32) << ";";
+    if (offer->offer_chains) {
+        result << "CHAINS=" << hex_encode(offer->offer_chains->shad.sha.u.u8, 32) << ";";
+    }
 
-    result << "AMOUNT=";
-    if (invoice->invoice_amount) {
-        result << invoice->invoice_amount;
-    } else {
-        result << "0";
+    // result << "METADATA=" << offer->offer_metadata << ";";
+
+    // result << "AMOUNT=";
+    // if (offer->offer_amount) {
+    //     result << offer->offer_amount;
+    // } else {
+    //     result << "0";
+    // }
+    // result << ";";
+
+    // result << "CURRENCY=";
+    // if (offer->offer_currency) {
+    //     result << offer->offer_currency;
+    // } else {
+    //     result << "0";
+    // }
+    // result << ";";
+
+    result << "DESCRIPTION=";
+    if (offer->offer_description) {
+        size_t len = tal_bytelen(offer->offer_description);
+        result.write((const char*)offer->offer_description, len);
+    }
+    result << ";";
+
+    // result << "FEATURES=";
+    // result << offer->offer_features << ";";
+
+    result << "ABSOLUTE_EXPIRY=";
+    if (offer->offer_absolute_expiry) {
+        result << offer->offer_absolute_expiry;
+    }
+    result << ";";
+
+    // result << "BLINDED_PATHS=";
+    
+    // result << ";";
+
+    // result << "ISSUER=";
+    // if (offer->offer_issuer) {
+    //     result << offer->offer_issuer;
+    // }
+    // result << ";";
+
+    result << "QUANTITY=";
+    if (offer->offer_quantity_max) {
+        result << offer->offer_quantity_max;
+    }
+    result << ";";
+
+    result << "ISSUER_ID=";
+    if (offer->offer_issuer_id) {
+        uint8_t compressed[33];
+        pubkey_to_der(compressed, offer->offer_issuer_id);
+        result << hex_encode(compressed, 33);
     }
 
     return result.str();
@@ -124,9 +176,9 @@ namespace bitcoinfuzz
             return clightning_des_invoice(str.c_str());
         }
 
-        std::optional<std::string> CLightning::deserialize_bolt12_invoice(std::string str) const
+        std::optional<std::string> CLightning::deserialize_offer(std::string str) const
         {
-            return clightning_des_bolt12_invoice(str.c_str());
+            return clightning_des_offer(str.c_str());
         }
     }
 }

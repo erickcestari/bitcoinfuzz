@@ -26,7 +26,7 @@ namespace bitcoinfuzz
         virtual std::optional<std::string> deserialize_invoice(std::string str) const;
         virtual std::optional<std::string> address_parse(std::string str) const;
         virtual std::optional<std::string> psbt_parse(std::span<const uint8_t> buffer) const;
-        virtual std::optional<std::string> deserialize_bolt12_invoice(std::string str) const;
+        virtual std::optional<std::string> deserialize_offer(std::string str) const;
         
         virtual ~BaseModule() noexcept;
     };

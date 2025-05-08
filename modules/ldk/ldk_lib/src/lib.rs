@@ -1,10 +1,8 @@
-use lightning::bitcoin::constants::ChainHash;
-use lightning::bitcoin::Network;
+use lightning::bitcoin::hex::{Case, DisplayHex};
 use lightning::bolt11_invoice::{
     Bolt11Invoice, Bolt11InvoiceDescriptionRef, Bolt11SemanticError, Currency, ParseOrSemanticError,
 };
-use lightning::offers::invoice::Bolt12Invoice;
-use lightning::offers::offer;
+use lightning::offers::offer::{self, Offer};
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::{ffi::CStr, str::FromStr};
@@ -99,37 +97,84 @@ pub unsafe extern "C" fn ldk_des_invoice(input: *const std::os::raw::c_char) -> 
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn ldk_des_bolt12_invoice(input: *const std::os::raw::c_char) -> *mut c_char {
+pub unsafe extern "C" fn ldk_des_offer(input: *const std::os::raw::c_char) -> *mut c_char {
     if input.is_null() {
         return str_to_c_string("");
     }
 
-    let c_str = CStr::from_ptr(input);
-    let bytes = c_str.to_bytes();
+    // Convert C string to Rust string
+    let c_str = match CStr::from_ptr(input).to_str() {
+        Ok(s) => s,
+        Err(_) => return str_to_c_string(""),
+    };
 
-    match Bolt12Invoice::try_from(bytes.to_vec()) {
-        Ok(invoice) => {
-            if invoice.chain() != ChainHash::using_genesis_block(Network::Bitcoin) {
-                return str_to_c_string("");
-            }
+    match Offer::from_str(c_str) {
+        Ok(offer) => {
             let mut result = String::new();
 
-            result.push_str("HASH=");
-            result.push_str(&invoice.payment_hash().to_string());
+            result.push_str("CHAINS=");
+            offer.chains().iter().for_each(|chain| {
+                result.push_str(&chain.to_string());
+            });
 
-            result.push_str(";AMOUNT=");
-            if let Some(amount) = invoice.amount() {
+            result.push_str(";METADATA=");
+            if let Some(metadata) = offer.metadata() {
+                result.push_str(&metadata.to_hex_string(Case::Lower));
+            }
+
+            if let Some(amount) = offer.amount() {
                 match amount {
                     offer::Amount::Bitcoin { amount_msats } => {
+                        result.push_str(";AMOUNT=");
                         result.push_str(&amount_msats.to_string());
                     }
                     offer::Amount::Currency {
-                        iso4217_code: _,
+                        iso4217_code,
                         amount,
                     } => {
+                        result.push_str(";CURRENCY=");
                         result.push_str(&amount.to_string());
+                        result.push_str(iso4217_code.to_hex_string(Case::Lower).as_str());
                     }
                 }
+            }
+
+            result.push_str(";DESCRIPTION=");
+            if let Some(description) = offer.description() {
+                result.push_str(description.0);
+            }
+
+            result.push_str(";FEATURES=");
+            let features = offer.offer_features();
+            result.push_str(&features.to_string());
+
+            result.push_str(";ABSOLUTE_EXPIRY=");
+            if let Some(absolute_expiry) = offer.absolute_expiry() {
+                result.push_str(absolute_expiry.as_secs().to_string().as_str());
+            }
+
+            result.push_str(";BLINDED_PATHS=");
+            offer.paths().iter().for_each(|path| {
+                result.push_str(";BLINDED_HOP=");
+                result.push_str(&path.blinding_point().to_string());
+            });
+
+            result.push_str(";ISSUER=");
+            if let Some(issuer) = offer.issuer() {
+                result.push_str(issuer.0);
+            }
+
+            result.push_str(";QUANTITY=");
+            let quantity = offer.supported_quantity();
+            match quantity {
+                offer::Quantity::Bounded(n) => result.push_str(&n.to_string()),
+                offer::Quantity::Unbounded => result.push_str("0"),
+                offer::Quantity::One => result.push_str("1"),
+            }
+
+            result.push_str(";ISSUER_ID=");
+            if let Some(issuer_id) = offer.issuer_signing_pubkey() {
+                result.push_str(&issuer_id.to_string());
             }
 
             str_to_c_string(&result)

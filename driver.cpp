@@ -212,20 +212,20 @@ namespace bitcoinfuzz
         }
     }
 
-    void Driver::Bolt12InvoiceDeserializationTarget(std::span<const uint8_t> buffer) const
+    void Driver::OfferDeserializationTarget(std::span<const uint8_t> buffer) const
     {
         FuzzedDataProvider provider(buffer.data(), buffer.size());
-        std::string invoice{provider.ConsumeRemainingBytesAsString()};
+        std::string offer{provider.ConsumeRemainingBytesAsString()};
         std::optional<std::string> last_response{std::nullopt};
         std::string last_module_name;
 
         for (auto &module : modules)
         {
-            std::optional<std::string> res{module.second->deserialize_bolt12_invoice(invoice)};
+            std::optional<std::string> res{module.second->deserialize_offer(offer)};
             if (!res.has_value()) continue;
             if (last_response.has_value()) {
                 if (*res != *last_response) {
-                    std::cout << "Invoice deserialization failed for " << invoice << std::endl;
+                    std::cout << "Offer deserialization failed for " << offer << std::endl;
                     std::cout << "Module: " << module.first << std::endl;
                     std::cout << "Result: " << *res << std::endl;
                     std::cout << "Module: " << last_module_name << std::endl;
@@ -260,8 +260,8 @@ namespace bitcoinfuzz
             this->AddressParseTarget(buffer);
         } else if (target == "psbt_parse") {
             this->PSBTParseTarget(buffer);
-        } else if (target == "deserialize_bolt12_invoice") {
-            this->Bolt12InvoiceDeserializationTarget(buffer);
+        } else if (target == "deserialize_offer") {
+            this->OfferDeserializationTarget(buffer);
         } else {
             std::cout << "Target not defined!" << std::endl;
             assert(false);
