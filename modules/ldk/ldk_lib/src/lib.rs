@@ -132,9 +132,14 @@ pub unsafe extern "C" fn ldk_des_offer(input: *const std::os::raw::c_char) -> *m
                         iso4217_code,
                         amount,
                     } => {
-                        result.push_str(";CURRENCY=");
+                        result.push_str(";AMOUNT=");
                         result.push_str(&amount.to_string());
-                        result.push_str(iso4217_code.to_hex_string(Case::Lower).as_str());
+                        result.push_str(";CURRENCY=");
+                        let code_str = match std::str::from_utf8(&iso4217_code) {
+                            Ok(s) => s,
+                            Err(_) => "Unknown",
+                        };
+                        result.push_str(code_str);
                     }
                 }
             }
@@ -146,17 +151,20 @@ pub unsafe extern "C" fn ldk_des_offer(input: *const std::os::raw::c_char) -> *m
 
             result.push_str(";FEATURES=");
             let features = offer.offer_features();
-            result.push_str(&features.to_string());
+            let mut be_flags = features.le_flags().to_vec();
+            be_flags.reverse();
+            result.push_str(be_flags.to_hex_string(Case::Lower).as_str());
 
             result.push_str(";ABSOLUTE_EXPIRY=");
             if let Some(absolute_expiry) = offer.absolute_expiry() {
                 result.push_str(absolute_expiry.as_secs().to_string().as_str());
             }
 
-            result.push_str(";BLINDED_PATHS=");
             offer.paths().iter().for_each(|path| {
-                result.push_str(";BLINDED_HOP=");
-                result.push_str(&path.blinding_point().to_string());
+                path.blinded_hops().iter().for_each(|hop| {
+                    result.push_str(";BLINDED_HOP=");
+                    result.push_str(hop.blinded_node_id.to_string().as_str());
+                });
             });
 
             result.push_str(";ISSUER=");
@@ -168,8 +176,7 @@ pub unsafe extern "C" fn ldk_des_offer(input: *const std::os::raw::c_char) -> *m
             let quantity = offer.supported_quantity();
             match quantity {
                 offer::Quantity::Bounded(n) => result.push_str(&n.to_string()),
-                offer::Quantity::Unbounded => result.push_str("0"),
-                offer::Quantity::One => result.push_str("1"),
+                _ => (),
             }
 
             result.push_str(";ISSUER_ID=");

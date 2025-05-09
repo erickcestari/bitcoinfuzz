@@ -24,7 +24,11 @@ extern "C" {
 #include <span>
 #include "module.h"
 
-void init(int *argc, char ***argv) { common_setup("fuzzer"); }
+void init(int *argc, char ***argv) {
+    if (!tmpctx){
+        common_setup("fuzzer"); 
+    }
+}
 
 struct TalFree {
     void operator()(void* ptr) const { tal_free(ptr); }
@@ -89,77 +93,88 @@ std::string clightning_des_offer(const std::string& input) {
     const struct chainparams* params = chainparams_for_network("bitcoin");
     const char *b12 = input.c_str();
     size_t b12len = input.size();
-    std::unique_ptr<tlv_offer, TalFree> offer(
-        offer_decode(nullptr, b12, b12len, nullptr, params, &fail)
-    );
 
+    struct tlv_offer *offer = offer_decode(tmpctx, b12, b12len, nullptr, params, &fail);
     if (!offer) {
-        tal_free(fail);
+        clean_tmpctx();
         return "";
     }
 
     std::ostringstream result;
+    result << "CHAINS=";
     if (offer->offer_chains) {
-        result << "CHAINS=" << hex_encode(offer->offer_chains->shad.sha.u.u8, 32) << ";";
+        result << hex_encode(offer->offer_chains->shad.sha.u.u8, 32);
+    } else {
+        // If no chains are specified, Clightning defaults to bitcoin
+        struct bitcoin_blkid chain = chainparams_for_network("bitcoin")->genesis_blockhash;
+        result << hex_encode(chain.shad.sha.u.u8, 32);
     }
 
-    // result << "METADATA=" << offer->offer_metadata << ";";
+    result << ";METADATA=";
+    if (offer->offer_metadata) {
+        result << hex_encode(offer->offer_metadata, tal_bytelen(offer->offer_metadata));
+    }
 
-    // result << "AMOUNT=";
-    // if (offer->offer_amount) {
-    //     result << offer->offer_amount;
-    // } else {
-    //     result << "0";
-    // }
-    // result << ";";
+    if (offer->offer_amount) {
+        result << ";AMOUNT=";
+        result << *offer->offer_amount;
+    }
 
-    // result << "CURRENCY=";
-    // if (offer->offer_currency) {
-    //     result << offer->offer_currency;
-    // } else {
-    //     result << "0";
-    // }
-    // result << ";";
+    if (offer->offer_currency) {
+        result << ";CURRENCY=";
+        size_t len = tal_bytelen(offer->offer_currency);
+        result.write((const char*)offer->offer_currency, len);
+    }
 
-    result << "DESCRIPTION=";
+    result << ";DESCRIPTION=";
     if (offer->offer_description) {
         size_t len = tal_bytelen(offer->offer_description);
         result.write((const char*)offer->offer_description, len);
     }
-    result << ";";
 
-    // result << "FEATURES=";
-    // result << offer->offer_features << ";";
+    result << ";FEATURES=";
+    if (offer->offer_features) {
+        result << hex_encode(offer->offer_features, tal_bytelen(offer->offer_features));
+    }
 
-    result << "ABSOLUTE_EXPIRY=";
+    result << ";ABSOLUTE_EXPIRY=";
     if (offer->offer_absolute_expiry) {
-        result << offer->offer_absolute_expiry;
+        result << *offer->offer_absolute_expiry;
     }
-    result << ";";
 
-    // result << "BLINDED_PATHS=";
-    
-    // result << ";";
+    if (offer->offer_paths) {
+        for (size_t i = 0; offer->offer_paths[i] != NULL; i++) {
+            struct blinded_path_hop **blinded_path_hops = offer->offer_paths[i]->path;
 
-    // result << "ISSUER=";
-    // if (offer->offer_issuer) {
-    //     result << offer->offer_issuer;
-    // }
-    // result << ";";
+            for (size_t j = 0; blinded_path_hops[j] != NULL; j++) {
+                result << ";BLINDED_HOP=";
+                struct pubkey pubkey = blinded_path_hops[j]->blinded_node_id;
+                uint8_t compressed[33];
+                pubkey_to_der(compressed, &pubkey);
+                result << hex_encode(compressed, 33);
+            }
+        }
+    }
 
-    result << "QUANTITY=";
+    result << ";ISSUER=";
+    if (offer->offer_issuer) {
+        size_t len = tal_bytelen(offer->offer_issuer);
+        result.write((const char*)offer->offer_issuer, len);
+    }
+
+    result << ";QUANTITY=";
     if (offer->offer_quantity_max) {
-        result << offer->offer_quantity_max;
+        result << *offer->offer_quantity_max;
     }
-    result << ";";
 
-    result << "ISSUER_ID=";
+    result << ";ISSUER_ID=";
     if (offer->offer_issuer_id) {
         uint8_t compressed[33];
         pubkey_to_der(compressed, offer->offer_issuer_id);
         result << hex_encode(compressed, 33);
     }
-
+    
+    clean_tmpctx();
     return result.str();
 }
 
