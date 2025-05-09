@@ -197,6 +197,12 @@ jobs:
           make
           ASAN_OPTIONS=detect_leaks=0 FUZZ=psbt_parse ./bitcoinfuzz -runs=100
 
+      - name: Test - addrv2_parse
+        run: |
+          export CXXFLAGS="-DBITCOIN_CORE -DRUST_BITCOIN"
+          make
+          ASAN_OPTIONS=detect_leaks=0 FUZZ=addrv2_parse ./bitcoinfuzz -runs=100
+
       - name: Test - deserialize_invoice
         run: |
           export CXXFLAGS="-DLDK -DLND -DCLIGHTNING -DCUSTOM_MUTATOR_BOLT11"
