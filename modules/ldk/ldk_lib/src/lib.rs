@@ -2,7 +2,7 @@ use lightning::bitcoin::hex::{Case, DisplayHex};
 use lightning::bolt11_invoice::{
     Bolt11Invoice, Bolt11InvoiceDescriptionRef, Bolt11SemanticError, Currency, ParseOrSemanticError,
 };
-use lightning::offers::offer::{self, Offer};
+use lightning::offers::refund::Refund;
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::{ffi::CStr, str::FromStr};
@@ -97,7 +97,9 @@ pub unsafe extern "C" fn ldk_des_invoice(input: *const std::os::raw::c_char) -> 
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn ldk_des_offer(input: *const std::os::raw::c_char) -> *mut c_char {
+pub unsafe extern "C" fn ldk_des_invoice_request(
+    input: *const std::os::raw::c_char,
+) -> *mut c_char {
     if input.is_null() {
         return str_to_c_string("");
     }
@@ -108,59 +110,34 @@ pub unsafe extern "C" fn ldk_des_offer(input: *const std::os::raw::c_char) -> *m
         Err(_) => return str_to_c_string(""),
     };
 
-    match Offer::from_str(c_str) {
-        Ok(offer) => {
+    match Refund::from_str(c_str) {
+        Ok(invoice_request) => {
             let mut result = String::new();
 
-            result.push_str("CHAINS=");
-            offer.chains().iter().for_each(|chain| {
-                result.push_str(&chain.to_string());
-            });
+            result.push_str("CHAIN=");
+            result.push_str(&invoice_request.chain().to_string());
 
             result.push_str(";METADATA=");
-            if let Some(metadata) = offer.metadata() {
-                result.push_str(&metadata.to_hex_string(Case::Lower));
-            }
+            result.push_str(&invoice_request.payer_metadata().to_hex_string(Case::Lower));
 
-            if let Some(amount) = offer.amount() {
-                match amount {
-                    offer::Amount::Bitcoin { amount_msats } => {
-                        result.push_str(";AMOUNT=");
-                        result.push_str(&amount_msats.to_string());
-                    }
-                    offer::Amount::Currency {
-                        iso4217_code,
-                        amount,
-                    } => {
-                        result.push_str(";AMOUNT=");
-                        result.push_str(&amount.to_string());
-                        result.push_str(";CURRENCY=");
-                        let code_str = match std::str::from_utf8(&iso4217_code) {
-                            Ok(s) => s,
-                            Err(_) => "Unknown",
-                        };
-                        result.push_str(code_str);
-                    }
-                }
-            }
+            result.push_str(";AMOUNT=");
+            result.push_str(&invoice_request.amount_msats().to_string());
 
             result.push_str(";DESCRIPTION=");
-            if let Some(description) = offer.description() {
-                result.push_str(description.0);
-            }
+            result.push_str(invoice_request.description().0);
 
             result.push_str(";FEATURES=");
-            let features = offer.offer_features();
+            let features = invoice_request.features();
             let mut be_flags = features.le_flags().to_vec();
             be_flags.reverse();
             result.push_str(be_flags.to_hex_string(Case::Lower).as_str());
 
             result.push_str(";ABSOLUTE_EXPIRY=");
-            if let Some(absolute_expiry) = offer.absolute_expiry() {
+            if let Some(absolute_expiry) = invoice_request.absolute_expiry() {
                 result.push_str(absolute_expiry.as_secs().to_string().as_str());
             }
 
-            offer.paths().iter().for_each(|path| {
+            invoice_request.paths().iter().for_each(|path| {
                 path.blinded_hops().iter().for_each(|hop| {
                     result.push_str(";BLINDED_HOP=");
                     result.push_str(hop.blinded_node_id.to_string().as_str());
@@ -168,20 +145,21 @@ pub unsafe extern "C" fn ldk_des_offer(input: *const std::os::raw::c_char) -> *m
             });
 
             result.push_str(";ISSUER=");
-            if let Some(issuer) = offer.issuer() {
+            if let Some(issuer) = invoice_request.issuer() {
                 result.push_str(issuer.0);
             }
 
             result.push_str(";QUANTITY=");
-            let quantity = offer.supported_quantity();
-            match quantity {
-                offer::Quantity::Bounded(n) => result.push_str(&n.to_string()),
-                _ => (),
+            if let Some(quantity) = invoice_request.quantity() {
+                result.push_str(&quantity.to_string());
             }
 
             result.push_str(";ISSUER_ID=");
-            if let Some(issuer_id) = offer.issuer_signing_pubkey() {
-                result.push_str(&issuer_id.to_string());
+            result.push_str(&invoice_request.payer_signing_pubkey().to_string());
+
+            result.push_str(";NOTE=");
+            if let Some(note) = invoice_request.payer_note() {
+                result.push_str(note.0);
             }
 
             str_to_c_string(&result)
