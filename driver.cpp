@@ -221,7 +221,7 @@ namespace bitcoinfuzz
 
         for (auto &module : modules)
         {
-            std::optional<std::string> res{module.second->deserialize_offer(offer)};
+            std::optional<std::string> res{module.second->deserialize_invoice_request(offer)};
             if (!res.has_value()) continue;
             if (last_response.has_value()) {
                 if (*res != *last_response) {
@@ -260,7 +260,7 @@ namespace bitcoinfuzz
             this->AddressParseTarget(buffer);
         } else if (target == "psbt_parse") {
             this->PSBTParseTarget(buffer);
-        } else if (target == "deserialize_offer") {
+        } else if (target == "deserialize_invoice_request") {
             this->OfferDeserializationTarget(buffer);
         } else {
             std::cout << "Target not defined!" << std::endl;

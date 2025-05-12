@@ -88,22 +88,22 @@ std::string clightning_des_invoice(const std::string& input) {
     return result.str();
 }
 
-std::string clightning_des_offer(const std::string& input) {
+std::string clightning_des_invoice_request(const std::string& input) {
     char* fail = nullptr;
     const struct chainparams* params = chainparams_for_network("bitcoin");
     const char *b12 = input.c_str();
     size_t b12len = input.size();
 
-    struct tlv_offer *offer = offer_decode(tmpctx, b12, b12len, nullptr, params, &fail);
-    if (!offer) {
+    struct tlv_invoice_request *invoice_request = invrequest_decode(tmpctx, b12, b12len, nullptr, params, &fail);
+    if (!invoice_request) {
         clean_tmpctx();
         return "";
     }
 
     std::ostringstream result;
     result << "CHAINS=";
-    if (offer->offer_chains) {
-        result << hex_encode(offer->offer_chains->shad.sha.u.u8, 32);
+    if (invoice_request->invreq_chain) {
+        result << hex_encode(invoice_request->invreq_chain->shad.sha.u.u8, 32);
     } else {
         // If no chains are specified, Clightning defaults to bitcoin
         struct bitcoin_blkid chain = chainparams_for_network("bitcoin")->genesis_blockhash;
@@ -111,40 +111,34 @@ std::string clightning_des_offer(const std::string& input) {
     }
 
     result << ";METADATA=";
-    if (offer->offer_metadata) {
-        result << hex_encode(offer->offer_metadata, tal_bytelen(offer->offer_metadata));
+    if (invoice_request->invreq_metadata) {
+        result << hex_encode(invoice_request->invreq_metadata, tal_bytelen(invoice_request->invreq_metadata));
     }
 
-    if (offer->offer_amount) {
+    if (invoice_request->invreq_amount) {
         result << ";AMOUNT=";
-        result << *offer->offer_amount;
-    }
-
-    if (offer->offer_currency) {
-        result << ";CURRENCY=";
-        size_t len = tal_bytelen(offer->offer_currency);
-        result.write((const char*)offer->offer_currency, len);
+        result << *invoice_request->invreq_amount;
     }
 
     result << ";DESCRIPTION=";
-    if (offer->offer_description) {
-        size_t len = tal_bytelen(offer->offer_description);
-        result.write((const char*)offer->offer_description, len);
+    if (invoice_request->offer_description) {
+        size_t len = tal_bytelen(invoice_request->offer_description);
+        result.write((const char*)invoice_request->offer_description, len);
     }
 
     result << ";FEATURES=";
-    if (offer->offer_features) {
-        result << hex_encode(offer->offer_features, tal_bytelen(offer->offer_features));
+    if (invoice_request->invreq_features) {
+        result << hex_encode(invoice_request->invreq_features, tal_bytelen(invoice_request->invreq_features));
     }
 
     result << ";ABSOLUTE_EXPIRY=";
-    if (offer->offer_absolute_expiry) {
-        result << *offer->offer_absolute_expiry;
+    if (invoice_request->offer_absolute_expiry) {
+        result << *invoice_request->offer_absolute_expiry;
     }
 
-    if (offer->offer_paths) {
-        for (size_t i = 0; offer->offer_paths[i] != NULL; i++) {
-            struct blinded_path_hop **blinded_path_hops = offer->offer_paths[i]->path;
+    if (invoice_request->invreq_paths) {
+        for (size_t i = 0; invoice_request->invreq_paths[i] != NULL; i++) {
+            struct blinded_path_hop **blinded_path_hops = invoice_request->invreq_paths[i]->path;
 
             for (size_t j = 0; blinded_path_hops[j] != NULL; j++) {
                 result << ";BLINDED_HOP=";
@@ -157,21 +151,27 @@ std::string clightning_des_offer(const std::string& input) {
     }
 
     result << ";ISSUER=";
-    if (offer->offer_issuer) {
-        size_t len = tal_bytelen(offer->offer_issuer);
-        result.write((const char*)offer->offer_issuer, len);
+    if (invoice_request->offer_issuer) {
+        size_t len = tal_bytelen(invoice_request->offer_issuer);
+        result.write((const char*)invoice_request->offer_issuer, len);
     }
 
     result << ";QUANTITY=";
-    if (offer->offer_quantity_max) {
-        result << *offer->offer_quantity_max;
+    if (invoice_request->invreq_quantity) {
+        result << *invoice_request->invreq_quantity;
     }
 
     result << ";ISSUER_ID=";
-    if (offer->offer_issuer_id) {
+    if (invoice_request->offer_issuer_id) {
         uint8_t compressed[33];
-        pubkey_to_der(compressed, offer->offer_issuer_id);
+        pubkey_to_der(compressed, invoice_request->offer_issuer_id);
         result << hex_encode(compressed, 33);
+    }
+
+    result << ";NOTE=";
+    if (invoice_request->invreq_payer_note) {
+        size_t len = tal_bytelen(invoice_request->invreq_payer_note);
+        result.write((const char*)invoice_request->invreq_payer_note, len);
     }
     
     clean_tmpctx();
@@ -191,9 +191,9 @@ namespace bitcoinfuzz
             return clightning_des_invoice(str.c_str());
         }
 
-        std::optional<std::string> CLightning::deserialize_offer(std::string str) const
+        std::optional<std::string> CLightning::deserialize_invoice_request(std::string str) const
         {
-            return clightning_des_offer(str.c_str());
+            return clightning_des_invoice_request(str.c_str());
         }
     }
 }
