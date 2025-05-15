@@ -1,0 +1,148 @@
+name: Nix Check
+
+on: [push, pull_request]
+
+jobs:
+  nix-build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-13]
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v24
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Restore and save Nix store
+        uses: nix-community/cache-nix-action@v6
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+
+      # Build steps for all modules
+      - name: Build - Bitcoin Core
+        timeout-minutes: 40
+        run: nix develop --command bash -c "cd modules/bitcoin && make"
+
+      - name: Build - bolt11mutator
+        timeout-minutes: 40
+        run: nix develop --command bash -c "cd modules/bolt11mutator && make"
+
+      - name: Build - rust bitcoin
+        timeout-minutes: 5
+        run: nix develop --command bash -c "cd modules/rustbitcoin && make cargo && make"
+
+      - name: Build - rust miniscript
+        timeout-minutes: 5
+        run: nix develop --command bash -c "cd modules/rustminiscript && make cargo && make"
+
+      - name: Build - btcd
+        timeout-minutes: 5
+        run: nix develop --command bash -c "cd modules/btcd && make"
+
+      - name: Build - embit
+        timeout-minutes: 5
+        run: nix develop --command bash -c "cd modules/embit && make"
+
+      - name: Build - lnd
+        timeout-minutes: 5
+        run: nix develop --command bash -c "cd modules/lnd && make"
+
+      - name: Build - ldk
+        timeout-minutes: 5
+        run: nix develop --command bash -c "cd modules/ldk && make cargo && make"
+
+      - name: Build - nlightning
+        timeout-minutes: 5
+        run: nix develop --command bash -c "cd modules/nlightning && make"
+
+      - name: Build - clightning
+        timeout-minutes: 5
+        run: nix develop --command bash -c "cd modules/clightning && make"
+
+      # Test steps
+      - name: Test - script
+        timeout-minutes: 5
+        run: |
+          nix develop --command bash -c "
+            export CXXFLAGS='-DBITCOIN_CORE -DRUST_BITCOIN'
+            make
+            FUZZ=script ./bitcoinfuzz -runs=100
+          "
+
+      - name: Test - deserialize_block
+        timeout-minutes: 5
+        run: |
+          nix develop --command bash -c "
+            export CXXFLAGS='-DBITCOIN_CORE -DRUST_BITCOIN -DBTCD'
+            make
+            FUZZ=deserialize_block ./bitcoinfuzz -runs=100
+          "
+
+      - name: Test - script_eval
+        timeout-minutes: 5
+        run: |
+          nix develop --command bash -c "
+            export CXXFLAGS='-DBITCOIN_CORE -DBTCD'
+            make
+            FUZZ=script_eval ./bitcoinfuzz -runs=100
+          "
+
+      - name: Test - descriptor_parse
+        timeout-minutes: 5
+        run: |
+          nix develop --command bash -c "
+            export CXXFLAGS='-DBITCOIN_CORE -DRUST_MINISCRIPT -DEMBIT'
+            make
+            ASAN_OPTIONS=detect_leaks=0 FUZZ=descriptor_parse ./bitcoinfuzz -runs=100
+          "
+
+      - name: Test - miniscript_parse
+        run: |
+          nix develop --command bash -c "
+            export CXXFLAGS='-DBITCOIN_CORE -DRUST_MINISCRIPT -DEMBIT'
+            make
+            ASAN_OPTIONS=detect_leaks=0 FUZZ=miniscript_parse ./bitcoinfuzz -runs=0
+          "
+
+      - name: Test - script_asm
+        run: |
+          nix develop --command bash -c "
+            export CXXFLAGS='-DBITCOIN_CORE -DBTCD'
+            make
+            FUZZ=script_asm ./bitcoinfuzz -runs=0
+          "
+
+      - name: Test - address_parse
+        run: |
+          nix develop --command bash -c "
+            export CXXFLAGS='-DBITCOIN_CORE -DRUST_BITCOIN'
+            make
+            FUZZ=address_parse ./bitcoinfuzz -runs=100
+          "
+
+      - name: Test - psbt_parse
+        run: |
+          nix develop --command bash -c "
+            export CXXFLAGS='-DEMBIT -DRUST_BITCOIN -DBTCD'
+            make
+            ASAN_OPTIONS=detect_leaks=0 FUZZ=psbt_parse ./bitcoinfuzz -runs=100
+          "
+
+      - name: Test - deserialize_invoice
+        run: |
+          nix develop --command bash -c "
+            export CXXFLAGS='-DLDK -DLND -DCLIGHTNING -DCUSTOM_MUTATOR_BOLT11'
+            (cd ./modules/bitcoin && make clean)
+            make
+            ASAN_OPTIONS=detect_leaks=0 FUZZ=deserialize_invoice ./bitcoinfuzz -runs=100
+          "

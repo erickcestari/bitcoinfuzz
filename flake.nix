@@ -22,7 +22,7 @@
           buildInputs = with pkgs; [
             rustup
             go
-            dotnet-sdk_9
+            dotnet-sdk_8
             clang_20
             libcxx
             cmake
@@ -40,6 +40,8 @@
             gettext
             jq
             sqlite
+          ] ++ lib.optionals stdenv.isDarwin [
+            darwin.ICU
           ];
 
           shellHook = ''
@@ -47,6 +49,17 @@
             export CXX=${pkgs.clang_20}/bin/clang++
             export RUSTUP_TOOLCHAIN=nightly
             export BOOST_LIB_DIR=${staticBoost.out}/lib/
+
+            export ICU_LIB_DIR=${pkgs.icu}/lib
+            export LD_LIBRARY_PATH=$ICU_LIB_DIR:$LD_LIBRARY_PATH
+            export DYLD_LIBRARY_PATH=$ICU_LIB_DIR:$DYLD_LIBRARY_PATH
+
+            # Additional environment variables for macOS ICU support
+            ${pkgs.lib.optionalString pkgs.stdenv.isDarwin ''
+              export DYLD_FALLBACK_LIBRARY_PATH="${pkgs.icu}/lib:${pkgs.darwin.ICU}/lib"
+              export ICU_ROOT="${pkgs.icu}"
+            ''}
+
             echo "bitcoinfuzz dev environment ready."
           '';
         };

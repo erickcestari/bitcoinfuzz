@@ -184,13 +184,12 @@ jobs:
           make
           FUZZ=script_asm ./bitcoinfuzz -runs=0
 
-
       - name: Test - address_parse
         run: |
           export CXXFLAGS="-DBITCOIN_CORE -DRUST_BITCOIN"
           make
           FUZZ=address_parse ./bitcoinfuzz -runs=100
-      
+
       - name: Test - psbt_parse
         run: |
           export CXXFLAGS="-DEMBIT -DRUST_BITCOIN -DBTCD"
