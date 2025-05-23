@@ -71,6 +71,8 @@ public:
 static JavaVM* jvm = nullptr;
 static jclass invoiceClass = nullptr;
 static jmethodID deserializeMethod = nullptr;
+static jclass offerClass = nullptr;
+static jmethodID deserializeOfferMethod = nullptr;
 
 static std::string cached_classpath;
 
@@ -251,6 +253,43 @@ bool init_jvm() {
 
     deserializeMethod = helper.getMethodID(invoiceClass, "fromString", "(Ljava/lang/String;)Lscala/util/Try;", true);
     if (!deserializeMethod) {
+        return false;
+    }
+
+    jclass localOfferClass = helper.findClass("fr/acinq/eclair/wire/protocol/OfferTypes$Offer$");
+    if (!localOfferClass) {
+        return false;
+    }
+
+    offerClass = static_cast<jclass>(helper.createGlobalRef(localOfferClass));
+    env->DeleteLocalRef(localOfferClass);
+
+    if (!offerClass) {
+        return false;
+    }
+
+    // Get the MODULE$ field (singleton instance)
+    jfieldID moduleField = env->GetStaticFieldID(offerClass, "MODULE$", "Lfr/acinq/eclair/wire/protocol/OfferTypes$Offer$;");
+    if (!moduleField) {
+        std::cerr << "Failed to find MODULE$ field" << std::endl;
+        return false;
+    }
+
+    // Get the singleton instance
+    jobject moduleInstance = env->GetStaticObjectField(offerClass, moduleField);
+    if (!moduleInstance) {
+        std::cerr << "Failed to get MODULE$ instance" << std::endl;
+        return false;
+    }
+
+    // Store the singleton instance globally
+    jobject offerModuleInstance = env->NewGlobalRef(moduleInstance);
+    env->DeleteLocalRef(moduleInstance);
+
+    // Get the instance method (note: false for isStatic)
+    deserializeOfferMethod = helper.getMethodID(offerClass, "decode", "(Ljava/lang/String;)Lscala/util/Try;", false);
+    if (!deserializeOfferMethod) {
+        std::cerr << "Failed to find decode method" << std::endl;
         return false;
     }
 
@@ -459,6 +498,185 @@ std::optional<std::string> eclair_des_invoice(const char* invoiceStr) {
     
     return formattedResult.empty() ? "" : std::make_optional(formattedResult);
 }
+std::optional<std::string> eclair_des_offer(std::string offer) {
+    if (!init_jvm() || !jvm) {
+        abort();
+    }
+
+    JNIThreadGuard threadGuard(jvm);
+    JNIEnv* env = threadGuard.getEnv();
+    if (!env) {
+        return "";
+    }
+
+    JNIHelper helper(env);
+    std::string formattedResult;
+
+    try {
+        jstring jOfferStr = helper.toJString(offer);
+        LocalRefGuard jOfferStrGuard(env, jOfferStr);
+        
+        if (!jOfferStr) {
+            return "";
+        }
+
+        jobject tryObj = helper.callStaticObjectMethod(offerClass, deserializeOfferMethod, jOfferStr);
+        if (!tryObj) {
+            return "";
+        }
+        
+        auto invoiceObjOpt = processTryResult(env, tryObj);
+        if (!invoiceObjOpt) {
+            return "";
+        }
+        
+        jobject invoiceObj = *invoiceObjOpt;
+        LocalRefGuard invoiceObjGuard(env, invoiceObj);
+        
+        // 1. Payment Hash
+        jmethodID paymentHashMethod = helper.getMethodID(invoiceClass, "paymentHash", "()Lfr/acinq/bitcoin/scalacompat/ByteVector32;");
+        jobject paymentHashObj = helper.callObjectMethod(invoiceObj, paymentHashMethod);
+        LocalRefGuard paymentHashGuard(env, paymentHashObj);
+        
+        jclass byteVectorClass = env->GetObjectClass(paymentHashObj);
+        LocalRefGuard byteVectorClassGuard(env, byteVectorClass);
+        
+        jmethodID toStringMethod = helper.getMethodID(byteVectorClass, "toString", "()Ljava/lang/String;");
+        jstring hashStr = (jstring)helper.callObjectMethod(paymentHashObj, toStringMethod);
+        LocalRefGuard hashStrGuard(env, hashStr);
+        
+        std::string hash = helper.fromJString(hashStr);
+
+        // 2. Amount
+        jmethodID amountOptMethod = helper.getMethodID(invoiceClass, "amount_opt", "()Lscala/Option;");
+        jobject amountOptObj = helper.callObjectMethod(invoiceObj, amountOptMethod);
+        LocalRefGuard amountOptGuard(env, amountOptObj);
+        
+        jclass optionClass = env->GetObjectClass(amountOptObj);
+        LocalRefGuard optionClassGuard(env, optionClass);
+        
+        jmethodID isDefined = helper.getMethodID(optionClass, "isDefined", "()Z");
+        jboolean hasAmount = helper.callBooleanMethod(amountOptObj, isDefined);
+
+        std::string amount = "0";
+        if (hasAmount) {
+            jmethodID getMethod = helper.getMethodID(optionClass, "get", "()Ljava/lang/Object;");
+            jobject amountObj = helper.callObjectMethod(amountOptObj, getMethod);
+            LocalRefGuard amountObjGuard(env, amountObj);
+            
+            jclass millisatoshiClass = env->GetObjectClass(amountObj);
+            LocalRefGuard millisatoshiClassGuard(env, millisatoshiClass);
+            
+            jmethodID toLongMethod = helper.getMethodID(millisatoshiClass, "toLong", "()J");
+            jlong amountLong = helper.callLongMethod(amountObj, toLongMethod);
+            amount = std::to_string(amountLong);
+        }
+
+        // 3. Description
+        jmethodID descriptionMethod = helper.getMethodID(invoiceClass, "description", "()Lscala/util/Either;");
+        jobject descEitherObj = helper.callObjectMethod(invoiceObj, descriptionMethod);
+        LocalRefGuard descEitherGuard(env, descEitherObj);
+        
+        jclass eitherClass = env->GetObjectClass(descEitherObj);
+        LocalRefGuard eitherClassGuard(env, eitherClass);
+        
+        jmethodID isLeftMethod = helper.getMethodID(eitherClass, "isLeft", "()Z");
+        jboolean isLeft = helper.callBooleanMethod(descEitherObj, isLeftMethod);
+
+        std::string description = "";
+        if (isLeft) {
+            jclass leftClass = helper.findClass("scala/util/Left");
+            LocalRefGuard leftClassGuard(env, leftClass);
+            
+            if (env->IsInstanceOf(descEitherObj, leftClass)) {
+                jmethodID valueMethod = helper.getMethodID(leftClass, "value", "()Ljava/lang/Object;");
+                jobject valueObj = helper.callObjectMethod(descEitherObj, valueMethod);
+                
+                if (valueObj) {
+                    LocalRefGuard valueObjGuard(env, valueObj);
+                    jstring descStr = (jstring)valueObj;
+                    description = helper.fromJString(descStr);
+                }
+            }
+        }
+
+        // 4. Node ID (recipient)
+        jmethodID nodeIdMethod = helper.getMethodID(invoiceClass, "nodeId", "()Lfr/acinq/bitcoin/scalacompat/Crypto$PublicKey;");
+        jobject nodeIdObj = helper.callObjectMethod(invoiceObj, nodeIdMethod);
+        LocalRefGuard nodeIdGuard(env, nodeIdObj);
+        
+        jclass pubKeyClass = env->GetObjectClass(nodeIdObj);
+        LocalRefGuard pubKeyClassGuard(env, pubKeyClass);
+        
+        jmethodID nodeToStringMethod = helper.getMethodID(pubKeyClass, "toString", "()Ljava/lang/String;");
+        jstring nodeIdStr = (jstring)helper.callObjectMethod(nodeIdObj, nodeToStringMethod);
+        LocalRefGuard nodeIdStrGuard(env, nodeIdStr);
+        
+        std::string nodeId = helper.fromJString(nodeIdStr);
+
+        // 5. Expiry
+        jmethodID expiryMethod = helper.getMethodID(invoiceClass, "relativeExpiry", "()Lscala/concurrent/duration/FiniteDuration;");
+        jobject expiryObj = helper.callObjectMethod(invoiceObj, expiryMethod);
+        LocalRefGuard expiryGuard(env, expiryObj);
+        
+        jclass durationClass = env->GetObjectClass(expiryObj);
+        LocalRefGuard durationClassGuard(env, durationClass);
+        
+        jmethodID toSecondsMethod = helper.getMethodID(durationClass, "toSeconds", "()J");
+        jlong expirySeconds = helper.callLongMethod(expiryObj, toSecondsMethod);
+
+        // 6. Timestamp
+        jmethodID timestampMethod = helper.getMethodID(invoiceClass, "createdAt", "()Lfr/acinq/eclair/TimestampSecond;");
+        jobject timestampObj = helper.callObjectMethod(invoiceObj, timestampMethod);
+        LocalRefGuard timestampGuard(env, timestampObj);
+        
+        jclass timestampClass = env->GetObjectClass(timestampObj);
+        LocalRefGuard timestampClassGuard(env, timestampClass);
+        
+        jmethodID toSecondsTimestampMethod = helper.getMethodID(timestampClass, "toLong", "()J");
+        jlong timestamp = helper.callLongMethod(timestampObj, toSecondsTimestampMethod);
+
+        // 7. Routing hints count
+        jmethodID routingInfoMethod = helper.getMethodID(invoiceClass, "routingInfo", "()Lscala/collection/immutable/Seq;");
+        jobject routingInfoObj = helper.callObjectMethod(invoiceObj, routingInfoMethod);
+        LocalRefGuard routingInfoGuard(env, routingInfoObj);
+        
+        jclass seqClass = env->GetObjectClass(routingInfoObj);
+        LocalRefGuard seqClassGuard(env, seqClass);
+        
+        jmethodID sizeMethod = helper.getMethodID(seqClass, "size", "()I");
+        jint routingHints = helper.callIntMethod(routingInfoObj, sizeMethod);
+
+        // 8. Min final CLTV expiry
+        jmethodID minCltvMethod = helper.getMethodID(invoiceClass, "minFinalCltvExpiryDelta", "()Lfr/acinq/eclair/CltvExpiryDelta;");
+        jobject minCltvObj = helper.callObjectMethod(invoiceObj, minCltvMethod);
+        LocalRefGuard minCltvGuard(env, minCltvObj);
+        
+        jclass cltvClass = env->GetObjectClass(minCltvObj);
+        LocalRefGuard cltvClassGuard(env, cltvClass);
+        
+        jmethodID toIntMethod = helper.getMethodID(cltvClass, "toInt", "()I");
+        jint minCltv = helper.callIntMethod(minCltvObj, toIntMethod);
+
+        formattedResult = "HASH=" + hash + ";" +
+                          "AMOUNT=" + amount + ";" +
+                          "DESCRIPTION=" + description + ";" +
+                          "RECIPIENT=" + nodeId + ";" +
+                          "EXPIRY=" + std::to_string(expirySeconds) + ";" +
+                          "TIMESTAMP=" + std::to_string(timestamp) + ";" +
+                          "ROUTING_HINTS=" + std::to_string(routingHints) + ";" +
+                          "MIN_CLTV=" + std::to_string(minCltv);
+    } catch (const std::exception& e) {
+        std::cerr << "Exception during JNI call: " << e.what() << std::endl;
+        return "";
+    } catch (...) {
+        std::cerr << "Unknown exception during JNI call" << std::endl;
+        return "";
+    }
+    
+    return formattedResult.empty() ? "" : std::make_optional(formattedResult);
+}
+
 
 namespace bitcoinfuzz {
     namespace module {
@@ -466,6 +684,10 @@ namespace bitcoinfuzz {
 
         std::optional<std::string> Eclair::deserialize_invoice(std::string str) const {
             return eclair_des_invoice(str.c_str());
+        }
+
+        std::optional<std::string> Eclair::deserialize_offer(std::string str) const {
+            return eclair_des_offer(str);
         }
     }
 }
