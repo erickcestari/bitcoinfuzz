@@ -208,3 +208,9 @@ jobs:
           export CXXFLAGS="-DLDK -DCLIGHTNING"
           make
           ASAN_OPTIONS=detect_leaks=0 FUZZ=deserialize_offer ./bitcoinfuzz -runs=100
+
+      - name: Test - deserialize_invoice_request
+        run: |
+          export CXXFLAGS="-DLDK -DCLIGHTNING"
+          make
+          ASAN_OPTIONS=detect_leaks=0 FUZZ=deserialize_invoice_request ./bitcoinfuzz -runs=100
