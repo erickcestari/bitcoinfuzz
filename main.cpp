@@ -46,7 +46,201 @@
 #endif
 
 
+#if defined(CUSTOM_MUTATOR_BOLT11) || defined(CUSTOM_MUTATOR_BOLT12_OFFER)
+#include <modules/custommutator/bech32.h>
+#include <modules/custommutator/customcrossover.h>
+#endif
+
+#ifdef CUSTOM_MUTATOR_BOLT12_OFFER
+extern const std::string bech32_hrp = "lno";
+extern const std::string dummy_initial_input = "lno1zcss9mk8y3wkklfvevcrszlmu23kfrxh49px20665dqwmn4p72pksese";
+#endif
+
 std::shared_ptr<bitcoinfuzz::Driver> driver = nullptr;
+
+#ifdef CUSTOM_MUTATOR_BOLT12_OFFER
+// A custom mutator that decodes the bech32 input, mutates the decoded input,
+// and then re-encodes the mutated input. This produces an input corpus that
+// consists entirely of correctly encoded bech32 strings, enabling efficient
+// fuzzing of the bolt12 decoding logic without the fuzzer getting stuck on
+// fuzzing the bech32 decoding logic. This custom mutator is originally from
+// core-lightning:
+// https://github.com/ElementsProject/lightning/blob/master/tests/fuzz/bolt12.h#L59
+extern "C" size_t LLVMFuzzerMutate(uint8_t *Data, size_t Size, size_t MaxSize);
+extern "C" size_t LLVMFuzzerCustomMutator(uint8_t *fuzz_data, size_t size, size_t max_size,
+                                          unsigned int seed);
+extern "C" size_t LLVMFuzzerCustomCrossOver(const uint8_t *in1, size_t in1_size, const uint8_t *in2,
+                                            size_t in2_size, uint8_t *out, size_t max_out_size,
+                                            unsigned seed);
+
+extern const std::string bech32_hrp;
+
+/* Encodes a dummy bolt12 offer/invoice-request/invoice into fuzz_data and
+ * returns the size of the encoded string. */
+static size_t initial_input(uint8_t *fuzz_data, size_t max_size)
+{
+    size_t output_size = std::min(max_size, dummy_initial_input.size());
+    std::memcpy(fuzz_data, dummy_initial_input.data(), output_size);
+
+    return output_size;
+}
+
+/* A custom mutator that decodes the bech32 input, mutates the decoded input,
+ * and then re-encodes the mutated input. This produces an input corpus that
+ * consists entirely of correctly encoded bech32 strings, enabling efficient
+ * fuzzing of the bolt12 decoding logic without the fuzzer getting stuck on
+ * fuzzing the bech32 decoding logic. */
+extern "C" size_t LLVMFuzzerCustomMutator(uint8_t *fuzz_data, size_t size,
+                                          size_t max_size, unsigned int seed)
+{
+    try
+    {
+        if (size < 9)
+            return initial_input(fuzz_data, max_size);
+        std::string input_str(reinterpret_cast<char *>(fuzz_data), size);
+
+        // Check if input contains the correct HRP before decoding
+        if (input_str.length() < bech32_hrp.length() + 1 ||
+            input_str.substr(0, bech32_hrp.length()) != bech32_hrp ||
+            (input_str.length() > bech32_hrp.length() && input_str[bech32_hrp.length()] != '1'))
+        {
+            return initial_input(fuzz_data, max_size);
+        }
+        
+        // Decode the input
+        bech32::DecodeResult decoded_result = bech32::DecodeNoChecksum(input_str, bech32::CharLimit::CUSTOM_MUTATOR);
+        std::vector<uint8_t> decoded_data = decoded_result.data;
+
+        if (decoded_data.empty())
+        {
+            return initial_input(fuzz_data, max_size);
+        }
+
+        if (decoded_data.size() > max_size)
+        {
+            return initial_input(fuzz_data, max_size);
+        }
+
+
+        // Mutate the data part of the decoded input
+        std::vector<uint8_t> mutated_data = decoded_data;
+
+        // Resize the vector to the maximum possible size BEFORE mutation.
+        mutated_data.resize(std::max(mutated_data.size(), max_size));
+
+        size_t mutated_size = LLVMFuzzerMutate(mutated_data.data(),
+                                            decoded_data.size(),
+                                            max_size);
+        mutated_data.resize(mutated_size);
+
+        // It ensures that all values remain valid 5-bit values
+        for (uint8_t& val : mutated_data) {
+            val &= 0x1F;
+        }
+        
+        // Encode the mutated input
+        std::string encoded_data = bech32::EncodeNoChecksum(bech32_hrp, mutated_data);
+        if (encoded_data.empty()) {
+            std::cout << "encoded_data.empty()";
+            return initial_input(fuzz_data, max_size);
+        }
+        size_t encoded_size = encoded_data.length();
+
+        if (encoded_size > max_size)
+        {
+            return initial_input(fuzz_data, max_size);
+        }
+
+        std::memcpy(fuzz_data, encoded_data.data(), encoded_size);
+
+        return encoded_size;
+    }
+    catch (const std::exception &e)
+    {
+        //std::cout << "Exception: " << e.what() << std::endl;
+        // In case of any exception, fall back to initial input
+        return initial_input(fuzz_data, max_size);
+    }
+}
+
+/* A custom cross-over mutator that decodes the bech32 inputs before cross-over
+ * mutating them. Like LLVMFuzzerCustomMutator, this enables more efficient
+ * fuzzing of bolt12 offers, invoice requests, and invoices. */
+extern "C" size_t LLVMFuzzerCustomCrossOver(const uint8_t *in1, size_t in1_size,
+                                            const uint8_t *in2, size_t in2_size,
+                                            uint8_t *out, size_t max_out_size,
+                                            unsigned seed)
+{
+    try {
+        // Decode first input
+        std::string input1_str(reinterpret_cast<const char*>(in1), in1_size);
+        
+        // Check if input1 contains the correct HRP
+        if (input1_str.length() < bech32_hrp.length() + 1 ||
+            input1_str.substr(0, bech32_hrp.length()) != bech32_hrp ||
+            (input1_str.length() > bech32_hrp.length() && 
+             input1_str[bech32_hrp.length()] != '1')) {
+            return 0;
+        }
+
+        bech32::DecodeResult decoded_result1 = bech32::DecodeNoChecksum(input1_str, 
+                                                    bech32::CharLimit::CUSTOM_MUTATOR);
+        std::vector<uint8_t> decoded_data1 = decoded_result1.data;
+        
+        if (decoded_data1.empty()) {
+            return 0;
+        }
+
+        // Decode second input
+        std::string input2_str(reinterpret_cast<const char*>(in2), in2_size);
+        
+        // Check if input2 contains the correct HRP
+        if (input2_str.length() < bech32_hrp.length() + 1 ||
+            input2_str.substr(0, bech32_hrp.length()) != bech32_hrp ||
+            (input2_str.length() > bech32_hrp.length() && 
+             input2_str[bech32_hrp.length()] != '1')) {
+            // std::cout << "// Check if input2 contains the correct HRP";
+            return 0;
+        }
+
+        bech32::DecodeResult decoded_result2 = bech32::DecodeNoChecksum(input2_str, 
+                                                    bech32::CharLimit::CUSTOM_MUTATOR);
+        std::vector<uint8_t> decoded_data2 = decoded_result2.data;
+        
+        if (decoded_data2.empty()) {
+            // std::cout << "decoded_data2.empty()";
+            return 0;
+        }
+
+        // Perform cross-over on decoded data
+        std::vector<uint8_t> crossed_data = cross_over(decoded_data1, decoded_data2, 
+                                                       max_out_size, seed);
+        
+        if (crossed_data.empty()) {
+            // std::cout << "crossed_data.empty()";
+            return 0;
+        }
+
+        // Encode the crossed-over data
+        std::string encoded_data = bech32::EncodeNoChecksum(bech32_hrp, crossed_data);
+        size_t encoded_size = encoded_data.length();
+
+        if (encoded_size > max_out_size) {
+            // std::cout << "encoded_size > max_out_size)";
+            return 0;
+        }
+
+        std::memcpy(out, encoded_data.data(), encoded_size);
+        return encoded_size;
+
+    } catch (const std::exception& e) {
+        //std::cout << "Exception: " << e.what() << std::endl;
+        // In case of any exception, fall back to cross_over_fail
+        return 0;
+    }
+}
+#endif
+
 
 #ifdef CUSTOM_MUTATOR_BOLT11
 // We use a custom mutator to produce an input corpus that consists entirely of
