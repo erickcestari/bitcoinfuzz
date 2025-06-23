@@ -72,8 +72,12 @@ custom_mutator_bolt12_offer() {
     execute_in_module "modules/custommutator" "$1"
 }
 
+lightning_kmp() {
+    execute_in_module "modules/lightningkmp" "$1"
+}
+
 # Define the list of modules
-modules="bitcoin_core rust_bitcoin rust_miniscript btcd nbitcoin embit lnd ldk nlightning clightning custom_mutator_bolt11 custom_mutator_bolt12_offer"
+modules="bitcoin_core rust_bitcoin rust_miniscript btcd nbitcoin lightning_kmp embit lnd ldk nlightning clightning custom_mutator_bolt11 custom_mutator_bolt12_offer"
 
 # Full clean: runs `make clean` in all module directories
 full_clean() {

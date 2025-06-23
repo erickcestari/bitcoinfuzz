@@ -227,6 +227,7 @@ If you prefer, you can still build the modules manually. Below are the steps for
     make
     export CXXFLAGS="$CXXFLAGS -DNLIGHTNING"
     ```
+
 - ### C-lightning
 
     ```bash
@@ -235,6 +236,14 @@ If you prefer, you can still build the modules manually. Below are the steps for
     cd modules/clightning
     make
     export CXXFLAGS="$CXXFLAGS -DCLIGHTNING"
+    ```
+
+- ### lightning-kmp
+
+    ```bash
+    cd modules/lightningkmp
+    make
+    export CXXFLAGS="$CXXFLAGS -DLIGHTNING_KMP"
     ```
 
 ## Final Build and Execution
