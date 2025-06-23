@@ -85,126 +85,66 @@ jobs:
           echo "CC=$(brew --prefix llvm@18)/bin/clang" >> $GITHUB_ENV
           echo "CXX=$(brew --prefix llvm@18)/bin/clang++" >> $GITHUB_ENV
 
-      - name: Build - Bitcoin Core
-        timeout-minutes: 40
-        run: |
-          if [ "${{ matrix.os }}" == "ubuntu-24.04" ]; then
-            export BOOST_LIB_DIR=/usr/lib/x86_64-linux-gnu/
-          elif [ "${{ matrix.os }}" == "macos-14" ]; then
-            export BOOST_LIB_DIR=$(brew --prefix boost)/lib/
-            export PATH="/usr/local/opt/autoconf/bin:/usr/local/opt/automake/bin:/usr/local/opt/libtool/bin:$PATH"
-          fi
-          cd modules/bitcoin && make
-
-      - name: Build - bolt11mutator
-        timeout-minutes: 40
-        run: |
-          cd modules/bolt11mutator && make
-
-      - name: Build - rust bitcoin
-        timeout-minutes: 5
-        run: |
-          rustup default nightly
-          cd modules/rustbitcoin && make cargo && make
-
-      - name: Build - rust miniscript
-        timeout-minutes: 5
-        run: |
-          rustup default nightly
-          cd modules/rustminiscript && make cargo && make
-
-      - name: Build - btcd
-        timeout-minutes: 5
-        run: |
-          cd modules/btcd && make
-
-      - name: Build - embit
-        timeout-minutes: 5
-        run: |
-          cd modules/embit && make
-
-      - name: Build - lnd
-        timeout-minutes: 5
-        run: |
-          cd modules/lnd && make
-
-      - name: Build - ldk
-        timeout-minutes: 5
-        run: |
-          rustup default nightly
-          cd modules/ldk && make cargo && make
-
-      - name: Build - nlightning
-        timeout-minutes: 5
-        run: |
-          cd modules/nlightning && make
-
-      - name: Build - clightning
-        timeout-minutes: 5
-        run: |
-          cd modules/clightning && make
-
       - name: Test - script
         timeout-minutes: 5
         run: |
           export CXXFLAGS="-DBITCOIN_CORE -DRUST_BITCOIN"
-          make
+          ./auto_build.sh
           FUZZ=script ./bitcoinfuzz -runs=100
 
       - name: Test - deserialize_block
         timeout-minutes: 5
         run: |
           export CXXFLAGS="-DBITCOIN_CORE -DRUST_BITCOIN -DBTCD"
-          make
+          ./auto_build.sh
           FUZZ=deserialize_block ./bitcoinfuzz -runs=100
 
       - name: Test - script_eval
         timeout-minutes: 5
         run: |
           export CXXFLAGS="-DBITCOIN_CORE -DBTCD"
-          make
+          ./auto_build.sh
           FUZZ=script_eval ./bitcoinfuzz -runs=100
 
       - name: Test - descriptor_parse
         timeout-minutes: 5
         run: |
           export CXXFLAGS="-DBITCOIN_CORE -DRUST_MINISCRIPT"
-          make
+          ./auto_build.sh
           ASAN_OPTIONS=detect_leaks=0 FUZZ=descriptor_parse ./bitcoinfuzz -runs=100
 
       - name: Test - miniscript_parse
         run: |
           export CXXFLAGS="-DBITCOIN_CORE -DRUST_MINISCRIPT"
-          make
+          ./auto_build.sh
           ASAN_OPTIONS=detect_leaks=0 FUZZ=miniscript_parse ./bitcoinfuzz -runs=0
 
       - name: Test - script_asm
         run: |
           export CXXFLAGS="-DBITCOIN_CORE -DBTCD"
-          make
+          ./auto_build.sh
           FUZZ=script_asm ./bitcoinfuzz -runs=0
 
       - name: Test - address_parse
         run: |
           export CXXFLAGS="-DBITCOIN_CORE -DRUST_BITCOIN"
-          make
+          ./auto_build.sh
           FUZZ=address_parse ./bitcoinfuzz -runs=100
 
       - name: Test - psbt_parse
         run: |
           export CXXFLAGS="-DBITCOIN_CORE -DRUST_BITCOIN -DBTCD"
-          make
+          ./auto_build.sh
           ASAN_OPTIONS=detect_leaks=0 FUZZ=psbt_parse ./bitcoinfuzz -runs=100
 
       - name: Test - deserialize_invoice
         run: |
           export CXXFLAGS="-DLDK -DLND -DCLIGHTNING -DCUSTOM_MUTATOR_BOLT11"
-          (cd ./modules/bitcoin && make clean)
-          make
+          ./auto_build.sh
           ASAN_OPTIONS=detect_leaks=0 FUZZ=deserialize_invoice ./bitcoinfuzz -runs=100
 
       - name: Test - deserialize_offer
         run: |
           export CXXFLAGS="-DLDK -DCLIGHTNING"
-          make
+          ./auto_build.sh
           ASAN_OPTIONS=detect_leaks=0 FUZZ=deserialize_offer ./bitcoinfuzz -runs=100
