@@ -186,6 +186,14 @@ If you prefer, you can still build the modules manually. Below are the steps for
     export CXXFLAGS="$CXXFLAGS -DBTCD"
     ```
 
+- ### NBitcoin
+
+    ```bash
+    cd modules/nbitcoin
+    make
+    export CXXFLAGS="$CXXFLAGS -DNBITCOIN"
+    ```
+
 - ### embit
 
     To run the fuzzer with `embit` module, you need to install the `embit` library.
