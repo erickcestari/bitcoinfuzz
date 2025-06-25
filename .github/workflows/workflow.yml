@@ -123,6 +123,13 @@ jobs:
         run: |
           cd modules/nbitcoin && make
 
+      - name: Test - descriptor_parse
+        timeout-minutes: 5
+        run: |
+          export CXXFLAGS="-DBITCOIN_CORE -DRUST_MINISCRIPT -DNBITCOIN"
+          make
+          ASAN_OPTIONS=detect_leaks=0 FUZZ=descriptor_parse ./bitcoinfuzz -runs=100
+
       - name: Build - embit
         timeout-minutes: 5
         run: |
@@ -169,13 +176,6 @@ jobs:
           export CXXFLAGS="-DBITCOIN_CORE -DBTCD"
           make
           FUZZ=script_eval ./bitcoinfuzz -runs=100
-
-      - name: Test - descriptor_parse
-        timeout-minutes: 5
-        run: |
-          export CXXFLAGS="-DBITCOIN_CORE -DRUST_MINISCRIPT -DNBITCOIN"
-          make
-          ASAN_OPTIONS=detect_leaks=0 FUZZ=descriptor_parse ./bitcoinfuzz -runs=100
 
       - name: Test - miniscript_parse
         run: |
