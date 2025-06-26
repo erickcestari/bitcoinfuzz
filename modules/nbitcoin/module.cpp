@@ -15,5 +15,13 @@ namespace bitcoinfuzz
         {
             return nbitcoin_descriptor_parse(str.c_str());
         }
+        std::optional<std::vector<bool>> NBitcoin::deserialize_block(std::span<const uint8_t> buffer) const
+        {
+            if (nbitcoin_deserialize_block(buffer.data(), buffer.size())) {
+                return std::vector<bool>{true};
+            }
+            
+            return std::vector<bool>{false};
+        }
     }
 }

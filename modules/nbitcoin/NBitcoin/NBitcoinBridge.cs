@@ -41,6 +41,30 @@ public static class Bridge
         }
     }
 
+    [UnmanagedCallersOnly(EntryPoint = "nbitcoin_deserialize_block")]
+    public static bool DeserializeBlock(IntPtr dataPtr, nuint len)
+    {
+        if (dataPtr == IntPtr.Zero || len == 0)
+            return false;
+
+        try
+        {
+            unsafe
+            {
+                var span = new ReadOnlySpan<byte>((byte*)dataPtr, (int)len);
+
+                var block = Block.Load(span.ToArray(), Network.Main);
+                var check = block.CheckMerkleRoot();
+                Console.WriteLine("check nbitcoin:" + check);
+                return check;
+            }
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static bool TryParseMiniscript(string miniscript, KeyType keyType)
     {
         try
