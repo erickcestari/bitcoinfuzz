@@ -83,7 +83,8 @@ static const std::string build_classpath() {
     
     try {
         for (const auto& entry : fs::directory_iterator("./modules/eclair/lib")) {
-            if (entry.path().extension() == ".jar") {
+            auto ext = entry.path().extension();
+            if (ext == ".jar" || ext == ".class") {
                 if (!first) cp << ":";
                 cp << entry.path().string();
                 first = false;

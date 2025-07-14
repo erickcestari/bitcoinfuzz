@@ -74,13 +74,13 @@ public class Bolt11InvoiceWrapper {
 
       sb.append(";EXPIRY=").append(invoice.relativeExpiry().toSeconds());
 
-      sb.append(";TIMESTAMP=").append(invoice.createdAt());
+      sb.append(";TIMESTAMP=").append(invoice.createdAt().toLong());
 
       sb.append(";PAYMENT_SECRET=").append(invoice.paymentSecret());
 
       sb.append(";ROUTING_HINTS=").append(invoice.routingInfo().size());
 
-      sb.append(";MIN_CLTV=").append(invoice.minFinalCltvExpiryDelta());
+      sb.append(";MIN_CLTV=").append(invoice.minFinalCltvExpiryDelta().toInt());
 
       Option<String> fallbackAddr = invoice.fallbackAddress();
       sb.append(";FALLBACK_ADDRESS=");
