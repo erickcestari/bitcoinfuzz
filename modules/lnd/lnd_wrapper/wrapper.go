@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"unsafe"
 
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/lightningnetwork/lnd/lnwire"
 	"github.com/lightningnetwork/lnd/zpay32"
 )
 
@@ -125,6 +127,32 @@ func LndDeserializeInvoice(cInvoiceStr *C.char) *C.char {
 	var buf bytes.Buffer
 	if err := invoice.Features.RawFeatureVector.EncodeBase256(&buf); err == nil {
 		sb.WriteString(fmt.Sprintf("%x", buf.Bytes()))
+	}
+
+	return C.CString(sb.String())
+}
+
+//export LndParseP2pLightningMessage
+func LndParseP2pLightningMessage(data *C.char, length C.int) *C.char {
+	buffer := C.GoBytes(unsafe.Pointer(data), length)
+	r := bytes.NewReader(buffer)
+
+	message, err := lnwire.ReadMessage(r, 0)
+	if err != nil {
+		return C.CString("")
+	}
+	sb := strings.Builder{}
+
+	if message.MsgType() == 18 {
+		sb.WriteString("MSG_TYPE=PING;NUM_PONG_BYTES=")
+		sb.WriteString(fmt.Sprintf("%d", message.(*lnwire.Ping).NumPongBytes))
+		sb.WriteString(";IGNORED=")
+		sb.WriteString(fmt.Sprintf("%d", len(message.(*lnwire.Ping).PaddingBytes)))
+	}
+
+	if message.MsgType() == 19 {
+		sb.WriteString("MSG_TYPE=PONG;IGNORED=")
+		sb.WriteString(fmt.Sprintf("%d", len(message.(*lnwire.Pong).PongBytes)))
 	}
 
 	return C.CString(sb.String())

@@ -222,6 +222,11 @@ jobs:
             asan_options: "detect_leaks=0:detect_container_overflow=0"
             pre_build: "(cd ./modules/bitcoin && make clean)"
             setup_java: "true"
+          - corpus: "parse_p2p_lightning_message"
+            target: "parse_p2p_lightning_message"
+            cxxflags: "-DLDK -DCLIGHTNING -DLND"
+            asan_options: "detect_leaks=0:detect_container_overflow=0"
+            pre_build: "(cd ./modules/bitcoin && make clean)"
 
     steps:
       - name: Checkout repo
