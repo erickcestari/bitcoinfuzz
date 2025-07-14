@@ -24,6 +24,11 @@ typedef struct { const char *p; ptrdiff_t n; } _GoString_;
 #include <stdint.h>
 #include <stdlib.h>
 
+typedef struct {
+    char* data;
+    int length;
+} ByteArray;
+
 #line 1 "cgo-generated-wrapper"
 
 
@@ -81,6 +86,7 @@ extern "C" {
 #endif
 
 extern char* LndDeserializeInvoice(char* cInvoiceStr);
+extern char* LndDeserializeGossip(ByteArray data);
 
 #ifdef __cplusplus
 }

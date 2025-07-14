@@ -16,5 +16,16 @@ namespace bitcoinfuzz
             free(result);
             return result_str;
         }
+
+        std::optional<std::string> Lnd::parse_gossip_message(std::span<const uint8_t> buffer) const
+        {
+            ByteArray message;
+            message.data = (char*)buffer.data();
+            message.length = buffer.size();
+            auto result = LndDeserializeGossip(message);
+            std::string result_str(result);
+            free(result);
+            return result_str;
+        }
     }
 }

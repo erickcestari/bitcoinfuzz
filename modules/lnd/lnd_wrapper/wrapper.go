@@ -3,16 +3,24 @@ package main
 /*
 #include <stdint.h>
 #include <stdlib.h>
+
+typedef struct {
+    char* data;
+    int length;
+} ByteArray;
 */
 import "C"
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"runtime"
 	"strings"
+	"unsafe"
 
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/lightningnetwork/lnd/lnwire"
 	"github.com/lightningnetwork/lnd/zpay32"
 )
 
@@ -126,6 +134,36 @@ func LndDeserializeInvoice(cInvoiceStr *C.char) *C.char {
 	if err := invoice.Features.RawFeatureVector.EncodeBase256(&buf); err == nil {
 		sb.WriteString(fmt.Sprintf("%x", buf.Bytes()))
 	}
+
+	return C.CString(sb.String())
+}
+
+//export LndDeserializeGossip
+func LndDeserializeGossip(data C.ByteArray) *C.char {
+	buffer := C.GoBytes(unsafe.Pointer(data.data), data.length)
+	r := bytes.NewReader(buffer)
+
+	var mType [2]byte
+	if _, err := r.ReadAt(mType[:], 0); err != nil {
+		return C.CString("")
+	}
+
+	// Routing (types 256-511): messages containing node and channel announcements,
+	// as well as any active route exploration (described in BOLT #7)
+	// https://github.com/lightning/bolts/blob/master/01-messaging.md#lightning-message-format
+	msgType := binary.BigEndian.Uint16(mType[:])
+	if msgType < 256 || msgType > 511 {
+		return C.CString("")
+	}
+
+	message, err := lnwire.ReadMessage(r, 0)
+	if err != nil {
+		return C.CString("")
+	}
+
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("Message Type: %d\n", message.MsgType()))
 
 	return C.CString(sb.String())
 }
