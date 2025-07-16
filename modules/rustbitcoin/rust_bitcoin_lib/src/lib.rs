@@ -1,9 +1,9 @@
 use bitcoin::address::Address;
 use bitcoin::bip152::HeaderAndShortIds;
-use bitcoin::block::BlockUncheckedExt;
+use bitcoin::block::{BlockUncheckedExt, HeaderExt};
 use bitcoin::consensus::{deserialize_partial, encode, serialize};
 use bitcoin::script::{ScriptBuf, ScriptExt};
-use bitcoin::Block;
+use bitcoin::{Block, Target};
 use p2p::address::AddrV2;
 use p2p::message::AddrV2Payload;
 use std::ffi::CStr;
@@ -41,8 +41,18 @@ pub unsafe extern "C" fn rust_bitcoin_des_block(
 
     match res {
         Ok(res) => {
-            let block_hash = res.0.block_hash();
-            let is_valid = res.0.validate().is_ok();
+            let block = res.0;
+            let block_hash = block.block_hash();
+            let is_valid = block.clone().validate().is_ok();
+            let (header, _) = block.into_parts();
+            let target = Target::ZERO;
+            match header.validate_pow(target) {
+                Ok(_) => {}
+                Err(_) => {
+                    return str_to_c_string("0");
+                }
+            }
+            
             if is_valid {
                 return str_to_c_string(&block_hash.to_string());
             } else {
