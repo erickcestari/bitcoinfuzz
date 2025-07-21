@@ -254,11 +254,6 @@ pub unsafe extern "C" fn ldk_des_offer(input: *const std::os::raw::c_char) -> *m
 }
 
 pub fn deserialize_gossip_message(data: &[u8]) -> Result<String, String> {
-    if data.len() < 2 {
-        return Err("Buffer too small".to_string());
-    }
-
-    // Read the message type (first 2 bytes, big-endian)
     let msg_type = u16::from_be_bytes([data[0], data[1]]);
 
     // Check if it's a routing/gossip message (types 256-511)
