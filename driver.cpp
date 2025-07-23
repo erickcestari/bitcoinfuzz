@@ -312,6 +312,15 @@ namespace bitcoinfuzz
         }
     }
 
+    void Driver::Secp256k1Target(std::span<const uint8_t> buffer) const
+    {
+        FuzzedDataProvider provider(buffer.data(), buffer.size());
+        for (auto &module : modules)
+        {
+            std::optional<std::string> res{module.second->fuzz_secp256k1(buffer)};
+        }
+    }
+
 
     void Driver::CompactBlocksTarget(std::span<const uint8_t> buffer) const
     {
@@ -374,6 +383,8 @@ namespace bitcoinfuzz
             this->OfferDeserializationTarget(buffer);
         } else if (target == "cmpctblocks_parse") {
             this->CompactBlocksTarget(buffer);
+        } else if (target == "fuzz_secp") {
+            this->Secp256k1Target(buffer);
         } else {
             std::cout << "Target not defined!" << std::endl;
             assert(false);

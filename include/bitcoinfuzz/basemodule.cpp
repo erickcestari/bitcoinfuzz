@@ -67,4 +67,9 @@ namespace bitcoinfuzz
     {
         return std::nullopt;
     }
+
+    std::optional<std::string> BaseModule::fuzz_secp256k1(std::span<const uint8_t> buffer) const
+    {
+        return std::nullopt;
+    }
 }
