@@ -163,7 +163,7 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("Message Type: %d\n", message.MsgType()))
+	sb.WriteString(fmt.Sprintf("%d", message.MsgType()))
 
 	return C.CString(sb.String())
 }

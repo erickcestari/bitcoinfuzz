@@ -31,15 +31,15 @@ namespace bitcoinfuzz
             return result_str;
         }
 
-        // std::optional<std::string> Ldk::parse_gossip_message(std::span<const uint8_t> buffer) const
-        // {
-        //     auto result = ldk_(str.c_str());
-        //     if (result == nullptr) {
-        //         return std::nullopt;
-        //     }
-        //     std::string result_str(result);
-        //     ldk_free_string(result);
-        //     return result_str;
-        // }
+        std::optional<std::string> Ldk::parse_gossip_message(std::span<const uint8_t> buffer) const
+        {
+            auto result = ldk_des_gossip_message(buffer.data(), buffer.size());
+            if (result == nullptr) {
+                return std::nullopt;
+            }
+            std::string result_str(result);
+            ldk_free_string(result);
+            return result_str;
+        }
     }
 }

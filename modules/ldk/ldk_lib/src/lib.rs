@@ -3,6 +3,7 @@ use lightning::bolt11_invoice::{
     Bolt11Invoice, Bolt11InvoiceDescriptionRef, Bolt11SemanticError, Currency, ParseOrSemanticError,
 };
 use lightning::io::Cursor;
+use lightning::io::{self};
 use lightning::ln::msgs;
 use lightning::offers::offer::{self, Offer};
 use lightning::util::ser::Readable;
@@ -253,190 +254,66 @@ pub unsafe extern "C" fn ldk_des_offer(input: *const std::os::raw::c_char) -> *m
     }
 }
 
-pub fn deserialize_gossip_message(data: &[u8]) -> Result<String, String> {
-    let msg_type = u16::from_be_bytes([data[0], data[1]]);
-
-    // Check if it's a routing/gossip message (types 256-511)
-    if msg_type < 256 || msg_type > 511 {
-        return Err("Not a gossip message".to_string());
+#[no_mangle]
+pub unsafe extern "C" fn ldk_des_gossip_message(data: *const u8, len: usize) -> *mut c_char {
+    let data = std::slice::from_raw_parts(data, len);
+    if data.len() < 2 {
+        return str_to_c_string("");
     }
 
-    // Create a cursor for the entire message (including type bytes)
-    let mut cursor = Cursor::new(data);
-    let mut result = String::new();
-    result.push_str(&format!("Message Type: {}\n", msg_type));
+    // Routing (types 256-511): messages containing node and channel announcements,
+    // as well as any active route exploration (described in BOLT #7)
+    // https://github.com/lightning/bolts/blob/master/01-messaging.md#lightning-message-format
+    let msg_type = u16::from_be_bytes([data[0], data[1]]);
+    if msg_type < 256 || msg_type > 511 {
+        return str_to_c_string("");
+    }
 
-    // Parse based on specific message type using LengthReadable
+    match read_gossip_message(msg_type, &data[2..]) {
+        Ok(_) => {}
+        Err(e) => {
+            println!("{:?}", e);
+            return str_to_c_string("");
+        }
+    }
+    return str_to_c_string(format!("{}", msg_type).as_str());
+}
+
+fn read_gossip_message(msg_type: u16, data: &[u8]) -> Result<(), lightning::ln::msgs::DecodeError> {
+    let mut cursor = Cursor::new(data);
     match msg_type {
         256 => {
-            // ChannelAnnouncement
-            match msgs::ChannelAnnouncement::read(&mut cursor) {
-                Ok(msg) => {
-                    result.push_str("Channel Announcement\n");
-                    result.push_str(&format!(
-                        "Short Channel ID: {}\n",
-                        msg.contents.short_channel_id
-                    ));
-                    result.push_str(&format!("Node ID 1: {:02x?}\n", msg.contents.node_id_1));
-                    result.push_str(&format!("Node ID 2: {:02x?}\n", msg.contents.node_id_2));
-                    result.push_str(&format!(
-                        "Bitcoin Key 1: {:02x?}\n",
-                        msg.contents.bitcoin_key_1
-                    ));
-                    result.push_str(&format!(
-                        "Bitcoin Key 2: {:02x?}\n",
-                        msg.contents.bitcoin_key_2
-                    ));
-                    result.push_str(&format!("Chain Hash: {:02x?}\n", msg.contents.chain_hash));
-                }
-                Err(e) => return Err(format!("Failed to parse ChannelAnnouncement: {:?}", e)),
-            }
+            msgs::ChannelAnnouncement::read(&mut cursor)?;
         }
         257 => {
-            // NodeAnnouncement
-            match msgs::NodeAnnouncement::read(&mut cursor) {
-                Ok(msg) => {
-                    result.push_str("Node Announcement\n");
-                    result.push_str(&format!("Node ID: {:02x?}\n", msg.contents.node_id));
-                    let alias = String::from_utf8_lossy(&msg.contents.alias.0)
-                        .trim_end_matches('\0')
-                        .to_string();
-                    result.push_str(&format!("Alias: {}\n", alias));
-                    result.push_str(&format!("Timestamp: {}\n", msg.contents.timestamp));
-                    result.push_str(&format!(
-                        "RGB Color: {:02x}{:02x}{:02x}\n",
-                        msg.contents.rgb[0], msg.contents.rgb[1], msg.contents.rgb[2]
-                    ));
-                    result.push_str(&format!(
-                        "Addresses: {} entries\n",
-                        msg.contents.addresses.len()
-                    ));
-                }
-                Err(e) => return Err(format!("Failed to parse NodeAnnouncement: {:?}", e)),
-            }
+            msgs::NodeAnnouncement::read(&mut cursor)?;
         }
         258 => {
-            // ChannelUpdate
-            match msgs::ChannelUpdate::read(&mut cursor) {
-                Ok(msg) => {
-                    result.push_str("Channel Update\n");
-                    result.push_str(&format!(
-                        "Short Channel ID: {}\n",
-                        msg.contents.short_channel_id
-                    ));
-                    result.push_str(&format!("Timestamp: {}\n", msg.contents.timestamp));
-                    result.push_str(&format!("Fee Base: {} msat\n", msg.contents.fee_base_msat));
-                    result.push_str(&format!(
-                        "Fee Rate: {} millionths\n",
-                        msg.contents.fee_proportional_millionths
-                    ));
-                    result.push_str(&format!(
-                        "CLTV Expiry Delta: {}\n",
-                        msg.contents.cltv_expiry_delta
-                    ));
-                    result.push_str(&format!(
-                        "HTLC Min: {} msat\n",
-                        msg.contents.htlc_minimum_msat
-                    ));
-                    result.push_str(&format!(
-                        "HTLC Max: {} msat\n",
-                        msg.contents.htlc_maximum_msat
-                    ));
-                    result.push_str(&format!(
-                        "Channel Flags: 0x{:02x}\n",
-                        msg.contents.channel_flags
-                    ));
-                    result.push_str(&format!(
-                        "Message Flags: 0x{:02x}\n",
-                        msg.contents.message_flags
-                    ));
-                }
-                Err(e) => return Err(format!("Failed to parse ChannelUpdate: {:?}", e)),
-            }
+            msgs::ChannelUpdate::read(&mut cursor)?;
         }
         259 => {
-            // AnnouncementSignatures
-            match msgs::AnnouncementSignatures::read(&mut cursor) {
-                Ok(msg) => {
-                    result.push_str("Announcement Signatures\n");
-                    result.push_str(&format!("Channel ID: {:02x?}\n", msg.channel_id));
-                    result.push_str(&format!("Short Channel ID: {}\n", msg.short_channel_id));
-                }
-                Err(e) => return Err(format!("Failed to parse AnnouncementSignatures: {:?}", e)),
-            }
+            msgs::AnnouncementSignatures::read(&mut cursor)?;
         }
         261 => {
-            // QueryShortChannelIds
-            match msgs::QueryShortChannelIds::read(&mut cursor) {
-                Ok(msg) => {
-                    result.push_str("Query Short Channel IDs\n");
-                    result.push_str(&format!("Chain Hash: {:02x?}\n", msg.chain_hash));
-                    result.push_str(&format!(
-                        "Number of Channel IDs: {}\n",
-                        msg.short_channel_ids.len()
-                    ));
-                }
-                Err(e) => return Err(format!("Failed to parse QueryShortChannelIds: {:?}", e)),
-            }
+            msgs::QueryShortChannelIds::read(&mut cursor)?;
         }
         262 => {
-            // ReplyShortChannelIdsEnd
-            match msgs::ReplyShortChannelIdsEnd::read(&mut cursor) {
-                Ok(msg) => {
-                    result.push_str("Reply Short Channel IDs End\n");
-                    result.push_str(&format!("Chain Hash: {:02x?}\n", msg.chain_hash));
-                    result.push_str(&format!("Full Information: {}\n", msg.full_information));
-                }
-                Err(e) => return Err(format!("Failed to parse ReplyShortChannelIdsEnd: {:?}", e)),
-            }
+            msgs::ReplyShortChannelIdsEnd::read(&mut cursor)?;
         }
         263 => {
-            // QueryChannelRange
-            match msgs::QueryChannelRange::read(&mut cursor) {
-                Ok(msg) => {
-                    result.push_str("Query Channel Range\n");
-                    result.push_str(&format!("Chain Hash: {:02x?}\n", msg.chain_hash));
-                    result.push_str(&format!("First Block: {}\n", msg.first_blocknum));
-                    result.push_str(&format!("Number of Blocks: {}\n", msg.number_of_blocks));
-                }
-                Err(e) => return Err(format!("Failed to parse QueryChannelRange: {:?}", e)),
-            }
+            msgs::QueryChannelRange::read(&mut cursor)?;
         }
         264 => {
-            // ReplyChannelRange
-            match msgs::ReplyChannelRange::read(&mut cursor) {
-                Ok(msg) => {
-                    result.push_str("Reply Channel Range\n");
-                    result.push_str(&format!("Chain Hash: {:02x?}\n", msg.chain_hash));
-                    result.push_str(&format!("First Block: {}\n", msg.first_blocknum));
-                    result.push_str(&format!("Number of Blocks: {}\n", msg.number_of_blocks));
-                    result.push_str(&format!("Sync Complete: {}\n", msg.sync_complete));
-                    result.push_str(&format!(
-                        "Short Channel IDs: {} entries\n",
-                        msg.short_channel_ids.len()
-                    ));
-                }
-                Err(e) => return Err(format!("Failed to parse ReplyChannelRange: {:?}", e)),
-            }
+            msgs::ReplyChannelRange::read(&mut cursor)?;
         }
         265 => {
-            // GossipTimestampFilter
-            match msgs::GossipTimestampFilter::read(&mut cursor) {
-                Ok(msg) => {
-                    result.push_str("Gossip Timestamp Filter\n");
-                    result.push_str(&format!("Chain Hash: {:02x?}\n", msg.chain_hash));
-                    result.push_str(&format!("First Timestamp: {}\n", msg.first_timestamp));
-                    result.push_str(&format!("Timestamp Range: {}\n", msg.timestamp_range));
-                }
-                Err(e) => return Err(format!("Failed to parse GossipTimestampFilter: {:?}", e)),
-            }
+            msgs::GossipTimestampFilter::read(&mut cursor)?;
         }
         _ => {
-            result.push_str("Unknown gossip message type\n");
+            return Err(lightning::ln::msgs::DecodeError::Io(io::ErrorKind::Other));
         }
-    }
-
-    Ok(result)
+    };
+    Ok(())
 }
 
 #[no_mangle]

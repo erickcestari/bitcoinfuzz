@@ -9,6 +9,7 @@ extern "C" {
     #include "common/setup.h"
     #include "common/addr.h"
     #include <bitcoin/chainparams.h>
+    #include <connectd_gossipd_wiregen.h>
     #include <ccan/tal/tal.h>
 }
 
@@ -239,6 +240,22 @@ std::string clightning_des_offer(const std::string_view input) {
     return result.str();
 }
 
+std::string clightning_parse_gossip_message(std::span<const uint8_t> buffer) {
+    struct node_id source;
+	u8 *msg;
+	const u8 *err;
+	const char *errmsg;
+	struct peer *peer;
+
+    u8 *outermsg = (u8 *) tal_arr(NULL, u8, buffer.size());
+    memcpy(outermsg, buffer.data(), buffer.size());
+
+     if (!fromwire_gossipd_recv_gossip(outermsg, outermsg + buffer.size(), &source, &msg)) {
+        tal_free(outermsg);
+        return "";
+    }
+}
+
 namespace bitcoinfuzz
 {
     namespace module
@@ -255,6 +272,11 @@ namespace bitcoinfuzz
         std::optional<std::string> CLightning::deserialize_offer(std::string str) const
         {
             return clightning_des_offer(str);
+        }
+
+        std::optional<std::string> CLightning::parse_gossip_message(std::span<const uint8_t> buffer) const
+        {
+            return clightning_parse_gossip_message(buffer);
         }
     }
 }
