@@ -3,6 +3,7 @@ use lightning::bolt11_invoice::{
     Bolt11Invoice, Bolt11InvoiceDescriptionRef, Bolt11SemanticError, Currency, ParseOrSemanticError,
 };
 use lightning::offers::offer::{self, Offer};
+use lightning::offers::parse::{Bolt12ParseError, Bolt12SemanticError};
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::{ffi::CStr, str::FromStr};
@@ -246,7 +247,10 @@ pub unsafe extern "C" fn ldk_des_offer(input: *const std::os::raw::c_char) -> *m
 
             str_to_c_string(&result)
         }
-        Err(_) => str_to_c_string(""),
+        Err(Bolt12ParseError::InvalidSemantics(Bolt12SemanticError::MissingPaths)) => {
+            std::ptr::null_mut()
+        }
+        Err(e) => {println!("Error: {:?}", e); return str_to_c_string("")},
     }
 }
 

@@ -77,6 +77,7 @@ object InvoiceDecoder {
                 when (val res = Offer.decode(offerString)) {
                     is Try.Success -> res.result
                     is Try.Failure -> {
+                        println("Error: ${res.error}")
                         return ""
                     }
                 }
