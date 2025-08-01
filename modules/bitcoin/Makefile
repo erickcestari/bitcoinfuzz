@@ -1,5 +1,5 @@
 all: module.a
-
+CC := clang
 CXX := clang++
 CXXFLAGS += -Wall -Wextra -std=c++20 \
             -fsanitize=fuzzer,address \
@@ -24,13 +24,20 @@ BITCOIN_OBJS := $(BITCOIN_SRCS:.cpp=.o)
 $(SECP256K1_LIB):
 	cd secp256k1 && \
 	./autogen.sh && \
-	CFLAGS="-fsanitize=address" ./configure --enable-module-recovery --enable-experimental --enable-module-schnorrsig --disable-shared --with-pic && \
+	./configure \
+		--enable-module-recovery \
+		--enable-experimental \
+		--enable-module-schnorrsig \
+		--disable-shared \
+		--with-pic \
+		CC=$(CC) \
+		CFLAGS="-fsanitize=address,fuzzer-no-link" && \
 	$(MAKE)
 
 # Build univalue with sanitizer flags
 $(UNIVALUE_LIB):
 	cd univalue && \
-	CXXFLAGS="-fsanitize=address" cmake -B build && \
+	CXX=$(CXX) CXXFLAGS="-fsanitize=address,fuzzer-no-link" cmake -B build && \
 	cmake --build build && \
 	cd build && \
 	$(MAKE) univalue
