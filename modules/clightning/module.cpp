@@ -148,13 +148,13 @@ std::optional<std::string> clightning_des_invoice(const std::string& input) {
 
 std::string clightning_des_offer(const std::string_view input) {
     char* fail = nullptr;
-    const struct chainparams* params = chainparams_for_network("bitcoin");
 
     // Get the truncated length of the string (in case it contains null bytes)
     size_t c_string_len = strnlen(input.data(), input.size());
 
-    struct tlv_offer *offer = offer_decode(tmpctx, input.data(), c_string_len, nullptr, params, &fail);
+    struct tlv_offer *offer = offer_decode(tmpctx, input.data(), c_string_len, nullptr, nullptr, &fail);
     if (!offer) {
+        std::cout << "Offer decode failed: " << fail << std::endl;
         clean_tmpctx();
         return "";
     }

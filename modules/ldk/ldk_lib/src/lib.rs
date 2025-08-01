@@ -8,7 +8,10 @@ use std::os::raw::c_char;
 use std::{ffi::CStr, str::FromStr};
 
 unsafe fn str_to_c_string(input: &str) -> *mut c_char {
-    CString::new(input).unwrap().into_raw()
+    match CString::new(input) {
+        Ok(c_str) => c_str.into_raw(),
+        Err(_) => std::ptr::null_mut(),
+    }
 }
 
 #[no_mangle]
@@ -167,7 +170,7 @@ pub unsafe extern "C" fn ldk_des_offer(input: *const std::os::raw::c_char) -> *m
         Ok(s) => s,
         Err(_) => return str_to_c_string(""),
     };
-
+    println!("C string: {}", c_str);
     match Offer::from_str(c_str) {
         Ok(offer) => {
             let mut result = String::new();
@@ -197,7 +200,7 @@ pub unsafe extern "C" fn ldk_des_offer(input: *const std::os::raw::c_char) -> *m
                         result.push_str(";CURRENCY=");
                         let code_str = match std::str::from_utf8(&iso4217_code) {
                             Ok(s) => s,
-                            Err(_) => "Unknown",
+                            Err(_) => return str_to_c_string(""),
                         };
                         result.push_str(code_str);
                     }
@@ -236,7 +239,8 @@ pub unsafe extern "C" fn ldk_des_offer(input: *const std::os::raw::c_char) -> *m
             let quantity = offer.supported_quantity();
             match quantity {
                 offer::Quantity::Bounded(n) => result.push_str(&n.to_string()),
-                _ => (),
+                offer::Quantity::Unbounded => result.push_str("0"),
+                offer::Quantity::One => ()
             }
 
             result.push_str(";ISSUER_ID=");
