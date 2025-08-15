@@ -23,6 +23,9 @@ namespace bitcoinfuzz
             message.data = (char*)buffer.data();
             message.length = buffer.size();
             auto result = LndDeserializeGossip(message);
+            if (result == nullptr) {
+                return std::nullopt;
+            }
             std::string result_str(result);
             free(result);
             return result_str;

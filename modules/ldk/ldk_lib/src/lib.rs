@@ -269,6 +269,10 @@ pub unsafe extern "C" fn ldk_des_gossip_message(data: *const u8, len: usize) -> 
         return str_to_c_string("");
     }
 
+    if msg_type != 261 {
+        return std::ptr::null_mut();
+    }
+
     match read_gossip_message(msg_type, &data[2..]) {
         Ok(_) => {}
         Err(e) => {

@@ -158,11 +158,27 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 
 	message, err := lnwire.ReadMessage(r, 0)
 	if err != nil {
+		println(err.Error())
 		return C.CString("")
 	}
 
-	var sb strings.Builder
+	if message.MsgType() != 261 {
+		return (*C.char)(unsafe.Pointer(nil))
+	}
 
+	if message.MsgType() == 261 {
+		if len(message.(*lnwire.QueryShortChanIDs).ExtraData) > 0 {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
+	}
+
+	if message.MsgType() == 262 {
+		if len(message.(*lnwire.ReplyShortChanIDsEnd).ExtraData) > 0 {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
+	}
+
+	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("%d", message.MsgType()))
 
 	return C.CString(sb.String())
