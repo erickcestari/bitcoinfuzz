@@ -1,4 +1,5 @@
 use lightning::bitcoin::hex::{Case, DisplayHex};
+use lightning::bitcoin::key::Secp256k1;
 use lightning::bolt11_invoice::{
     Bolt11Invoice, Bolt11InvoiceDescriptionRef, Bolt11SemanticError, Currency, ParseOrSemanticError,
 };
@@ -6,6 +7,7 @@ use lightning::io::Cursor;
 use lightning::io::{self};
 use lightning::ln::msgs;
 use lightning::offers::offer::{self, Offer};
+use lightning::routing::gossip::verify_channel_announcement;
 use lightning::util::ser::Readable;
 use std::ffi::CString;
 use std::os::raw::c_char;
@@ -269,14 +271,13 @@ pub unsafe extern "C" fn ldk_des_gossip_message(data: *const u8, len: usize) -> 
         return str_to_c_string("");
     }
 
-    if msg_type != 261 {
+    if msg_type != 256 {
         return std::ptr::null_mut();
     }
 
     match read_gossip_message(msg_type, &data[2..]) {
         Ok(_) => {}
         Err(e) => {
-            println!("{:?}", e);
             return str_to_c_string("");
         }
     }
@@ -287,7 +288,9 @@ fn read_gossip_message(msg_type: u16, data: &[u8]) -> Result<(), lightning::ln::
     let mut cursor = Cursor::new(data);
     match msg_type {
         256 => {
-            msgs::ChannelAnnouncement::read(&mut cursor)?;
+            let msg = msgs::ChannelAnnouncement::read(&mut cursor)?;
+            let secp = Secp256k1::new();
+            verify_channel_announcement(&msg, &secp).map_err(| _| lightning::ln::msgs::DecodeError::InvalidValue)?;
         }
         257 => {
             msgs::NodeAnnouncement::read(&mut cursor)?;

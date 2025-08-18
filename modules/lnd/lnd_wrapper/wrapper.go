@@ -21,6 +21,7 @@ import (
 
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/lightningnetwork/lnd/lnwire"
+	"github.com/lightningnetwork/lnd/netann"
 	"github.com/lightningnetwork/lnd/zpay32"
 )
 
@@ -158,23 +159,17 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 
 	message, err := lnwire.ReadMessage(r, 0)
 	if err != nil {
-		println(err.Error())
 		return C.CString("")
 	}
 
-	if message.MsgType() != 261 {
+	if message.MsgType() != 256 {
 		return (*C.char)(unsafe.Pointer(nil))
 	}
 
-	if message.MsgType() == 261 {
-		if len(message.(*lnwire.QueryShortChanIDs).ExtraData) > 0 {
-			return (*C.char)(unsafe.Pointer(nil))
-		}
-	}
-
-	if message.MsgType() == 262 {
-		if len(message.(*lnwire.ReplyShortChanIDsEnd).ExtraData) > 0 {
-			return (*C.char)(unsafe.Pointer(nil))
+	if message.MsgType() == 256 {
+		err := netann.ValidateChannelAnn(message.(*lnwire.ChannelAnnouncement1), nil)
+		if err != nil {
+			return C.CString("")
 		}
 	}
 
