@@ -83,7 +83,6 @@ pub unsafe extern "C" fn ldk_des_invoice(input: *const std::os::raw::c_char) -> 
                     .as_str(),
             );
 
-
             result.push_str(";TIMESTAMP=");
             result.push_str(
                 &invoice
@@ -271,13 +270,14 @@ pub unsafe extern "C" fn ldk_des_gossip_message(data: *const u8, len: usize) -> 
         return str_to_c_string("");
     }
 
-    if msg_type != 256 {
+    if msg_type != 256 && msg_type != 259 {
         return std::ptr::null_mut();
     }
 
     match read_gossip_message(msg_type, &data[2..]) {
         Ok(_) => {}
         Err(e) => {
+            println!("{:?}", e);
             return str_to_c_string("");
         }
     }
@@ -290,7 +290,8 @@ fn read_gossip_message(msg_type: u16, data: &[u8]) -> Result<(), lightning::ln::
         256 => {
             let msg = msgs::ChannelAnnouncement::read(&mut cursor)?;
             let secp = Secp256k1::new();
-            verify_channel_announcement(&msg, &secp).map_err(| _| lightning::ln::msgs::DecodeError::InvalidValue)?;
+            verify_channel_announcement(&msg, &secp)
+                .map_err(|_| lightning::ln::msgs::DecodeError::InvalidValue)?;
         }
         257 => {
             msgs::NodeAnnouncement::read(&mut cursor)?;

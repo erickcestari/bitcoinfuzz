@@ -162,13 +162,19 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 		return C.CString("")
 	}
 
-	if message.MsgType() != 256 {
+	if message.MsgType() != 256 && message.MsgType() != 259 {
 		return (*C.char)(unsafe.Pointer(nil))
 	}
 
 	if message.MsgType() == 256 {
 		err := netann.ValidateChannelAnn(message.(*lnwire.ChannelAnnouncement1), nil)
 		if err != nil {
+			return C.CString("")
+		}
+	}
+
+	if message.MsgType() == 259 {
+		if len(message.(*lnwire.AnnounceSignatures1).ExtraOpaqueData) > 0 {
 			return C.CString("")
 		}
 	}
