@@ -162,7 +162,7 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 		return C.CString("")
 	}
 
-	if message.MsgType() != 256 && message.MsgType() != 259 {
+	if message.MsgType() != 256 && message.MsgType() != 257 && message.MsgType() != 258 {
 		return (*C.char)(unsafe.Pointer(nil))
 	}
 
@@ -173,8 +173,15 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 		}
 	}
 
+	if message.MsgType() == 257 {
+		err := netann.ValidateNodeAnn(message.(*lnwire.NodeAnnouncement))
+		if err != nil {
+			return C.CString("")
+		}
+	}
+
 	if message.MsgType() == 259 {
-		if len(message.(*lnwire.AnnounceSignatures1).ExtraOpaqueData) > 0 {
+		if len(message.(*lnwire.AnnounceSignatures1).ExtraOpaqueData) != 0 {
 			return C.CString("")
 		}
 	}
