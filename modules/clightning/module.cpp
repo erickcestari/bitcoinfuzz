@@ -9,7 +9,8 @@ extern "C" {
     #include "common/setup.h"
     #include "common/addr.h"
     #include <bitcoin/chainparams.h>
-    #include <connectd_gossipd_wiregen.h>
+    #include <wire/peer_wiregen.h>
+    #include <gossipd/sigcheck.h>
     #include <ccan/tal/tal.h>
 }
 
@@ -241,19 +242,41 @@ std::string clightning_des_offer(const std::string_view input) {
 }
 
 std::string clightning_parse_gossip_message(std::span<const uint8_t> buffer) {
-    struct node_id source;
-	u8 *msg;
-	const u8 *err;
-	const char *errmsg;
-	struct peer *peer;
+    secp256k1_ecdsa_signature node_signature_1, node_signature_2;
+	secp256k1_ecdsa_signature bitcoin_signature_1, bitcoin_signature_2;
+	u8 *features;
+	struct bitcoin_blkid chain_hash;
+	struct short_channel_id scid;
+	struct node_id node_id_1;
+	struct node_id node_id_2;
+	struct pubkey bitcoin_key_1;
+	struct pubkey bitcoin_key_2;
+    u8 *msg = (u8 *) tal_arr(NULL, u8, buffer.size());
+    memcpy(msg, buffer.data(), buffer.size());
+    peer_wire msg_type = (enum peer_wire)fromwire_peektype(msg);
 
-    u8 *outermsg = (u8 *) tal_arr(NULL, u8, buffer.size());
-    memcpy(outermsg, buffer.data(), buffer.size());
+    std::string result;
+    
+    if (msg_type == WIRE_CHANNEL_ANNOUNCEMENT) {
+        if (!fromwire_channel_announcement(tmpctx, msg, &node_signature_1, &node_signature_2,
+                        &bitcoin_signature_1, &bitcoin_signature_2, &features, &chain_hash,
+                        &scid, &node_id_1, &node_id_2, &bitcoin_key_1, &bitcoin_key_2)) {
+            clean_tmpctx();
+            return "";
+        }
 
-     if (!fromwire_gossipd_recv_gossip(outermsg, outermsg + buffer.size(), &source, &msg)) {
-        tal_free(outermsg);
-        return "";
+        const char* fail;
+        fail = sigcheck_channel_announcement(tmpctx, &node_id_1, &node_id_2, &bitcoin_key_1, &bitcoin_key_2,
+                        &node_signature_1 , &node_signature_2, &bitcoin_signature_1, &bitcoin_signature_2, msg);
+        if (fail) {
+            clean_tmpctx();
+            return "";
+        }
+
+        return "256";
     }
+    clean_tmpctx();
+    return "";
 }
 
 namespace bitcoinfuzz
