@@ -242,15 +242,6 @@ std::string clightning_des_offer(const std::string_view input) {
 }
 
 std::string clightning_parse_gossip_message(std::span<const uint8_t> buffer) {
-    secp256k1_ecdsa_signature node_signature_1, node_signature_2;
-	secp256k1_ecdsa_signature bitcoin_signature_1, bitcoin_signature_2;
-	u8 *features;
-	struct bitcoin_blkid chain_hash;
-	struct short_channel_id scid;
-	struct node_id node_id_1;
-	struct node_id node_id_2;
-	struct pubkey bitcoin_key_1;
-	struct pubkey bitcoin_key_2;
     u8 *msg = (u8 *) tal_arr(NULL, u8, buffer.size());
     memcpy(msg, buffer.data(), buffer.size());
     peer_wire msg_type = (enum peer_wire)fromwire_peektype(msg);
@@ -258,6 +249,16 @@ std::string clightning_parse_gossip_message(std::span<const uint8_t> buffer) {
     std::string result;
     
     if (msg_type == WIRE_CHANNEL_ANNOUNCEMENT) {
+        secp256k1_ecdsa_signature node_signature_1, node_signature_2;
+        secp256k1_ecdsa_signature bitcoin_signature_1, bitcoin_signature_2;
+        u8 *features;
+        struct bitcoin_blkid chain_hash;
+        struct short_channel_id scid;
+        struct node_id node_id_1;
+        struct node_id node_id_2;
+        struct pubkey bitcoin_key_1;
+        struct pubkey bitcoin_key_2;
+
         if (!fromwire_channel_announcement(tmpctx, msg, &node_signature_1, &node_signature_2,
                         &bitcoin_signature_1, &bitcoin_signature_2, &features, &chain_hash,
                         &scid, &node_id_1, &node_id_2, &bitcoin_key_1, &bitcoin_key_2)) {
@@ -273,7 +274,35 @@ std::string clightning_parse_gossip_message(std::span<const uint8_t> buffer) {
             return "";
         }
 
+        clean_tmpctx();
         return "256";
+    }
+
+    if (msg_type == WIRE_NODE_ANNOUNCEMENT) {
+        struct gossmap_node *node;
+        u8 *nannounce;
+        struct node_id id;
+        secp256k1_ecdsa_signature signature;
+        u32 timestamp;
+        u8 *addresses, *features;
+        u8 rgb_color[3], alias[32];
+        struct tlv_node_ann_tlvs *na_tlvs;
+        struct wireaddr *alladdrs, *addrs[3];
+
+        if (!fromwire_node_announcement(tmpctx, msg, &signature, &features, &timestamp, &id, rgb_color, alias, &addresses, &na_tlvs)) {
+            clean_tmpctx();
+            return "";
+        }
+
+        const char* fail;
+        fail = sigcheck_node_announcement(tmpctx, &id, &signature, msg);
+        if (fail) {
+            clean_tmpctx();
+            return "";
+        }
+
+        clean_tmpctx();
+        return "257";
     }
     clean_tmpctx();
     return "";
