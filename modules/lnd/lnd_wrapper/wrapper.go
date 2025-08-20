@@ -162,7 +162,17 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 		return C.CString("")
 	}
 
-	if message.MsgType() != 256 && message.MsgType() != 257 && message.MsgType() != 261 {
+	switch message.MsgType() {
+	case 256:
+	case 257:
+	//case 258:
+	//case 261:
+	//case 262:
+	case 263:
+	//case 264:
+	case 265:
+		break
+	default:
 		return (*C.char)(unsafe.Pointer(nil))
 	}
 
@@ -180,8 +190,53 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 		}
 	}
 
+	if message.MsgType() == 258 {
+		_, err := message.(*lnwire.ChannelUpdate1).Signature.ToSignature()
+		if err != nil {
+			return C.CString("")
+		}
+
+		fmt.Println(message.(*lnwire.ChannelUpdate1).ChainHash)
+		fmt.Println(message.(*lnwire.ChannelUpdate1).ShortChannelID)
+		fmt.Println(message.(*lnwire.ChannelUpdate1).Timestamp)
+		fmt.Println(message.(*lnwire.ChannelUpdate1).MessageFlags)
+		fmt.Println(message.(*lnwire.ChannelUpdate1).ChannelFlags)
+		fmt.Println(message.(*lnwire.ChannelUpdate1).TimeLockDelta)
+		fmt.Println(message.(*lnwire.ChannelUpdate1).HtlcMinimumMsat)
+		fmt.Println(message.(*lnwire.ChannelUpdate1).BaseFee)
+		fmt.Println(message.(*lnwire.ChannelUpdate1).FeeRate)
+		fmt.Println(message.(*lnwire.ChannelUpdate1).HtlcMaximumMsat)
+	}
+
 	if message.MsgType() == 261 {
 		if len(message.(*lnwire.QueryShortChanIDs).ExtraData) != 0 {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
+	}
+
+	if message.MsgType() == 262 {
+		if len(message.(*lnwire.ReplyShortChanIDsEnd).ExtraData) != 0 {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
+
+		fmt.Println(message.(*lnwire.ReplyShortChanIDsEnd).Complete)
+		fmt.Println(message.(*lnwire.ReplyShortChanIDsEnd).ChainHash)
+	}
+
+	if message.MsgType() == 263 {
+		if len(message.(*lnwire.QueryChannelRange).ExtraData) != 0 {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
+	}
+
+	if message.MsgType() == 264 {
+		if len(message.(*lnwire.ReplyChannelRange).ExtraData) != 0 {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
+	}
+
+	if message.MsgType() == 265 {
+		if len(message.(*lnwire.GossipTimestampRange).ExtraData) != 0 {
 			return (*C.char)(unsafe.Pointer(nil))
 		}
 	}
