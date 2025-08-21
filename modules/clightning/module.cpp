@@ -241,7 +241,7 @@ std::string clightning_des_offer(const std::string_view input) {
     return result.str();
 }
 
-std::string clightning_parse_gossip_message(std::span<const uint8_t> buffer) {
+std::optional<std::string> clightning_parse_gossip_message(std::span<const uint8_t> buffer) {
     u8 *msg = (u8 *) tal_arr(NULL, u8, buffer.size());
     memcpy(msg, buffer.data(), buffer.size());
     peer_wire msg_type = (enum peer_wire)fromwire_peektype(msg);
@@ -303,6 +303,23 @@ std::string clightning_parse_gossip_message(std::span<const uint8_t> buffer) {
 
         clean_tmpctx();
         return "257";
+    }
+
+    if (msg_type == WIRE_QUERY_CHANNEL_RANGE) {
+        struct bitcoin_blkid chain_hash;
+        u32 first_blocknum, number_of_blocks;
+        struct tlv_query_channel_range_tlvs *tlvs;
+
+        if (!fromwire_query_channel_range(tmpctx, msg, &chain_hash, &first_blocknum, &number_of_blocks, &tlvs)) {
+            clean_tmpctx();
+            return "";
+        }
+        if (tal_count(tlvs) != 0) {
+            clean_tmpctx();
+            return std::nullopt;
+        }
+        clean_tmpctx();
+        return "263";
     }
     clean_tmpctx();
     return "";
