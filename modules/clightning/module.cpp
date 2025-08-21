@@ -242,7 +242,7 @@ std::string clightning_des_offer(const std::string_view input) {
 }
 
 std::optional<std::string> clightning_parse_gossip_message(std::span<const uint8_t> buffer) {
-    u8 *msg = (u8 *) tal_arr(NULL, u8, buffer.size());
+    u8 *msg = (u8 *) tal_arr(tmpctx, u8, buffer.size());
     memcpy(msg, buffer.data(), buffer.size());
     peer_wire msg_type = (enum peer_wire)fromwire_peektype(msg);
 
@@ -320,6 +320,26 @@ std::optional<std::string> clightning_parse_gossip_message(std::span<const uint8
         }
         clean_tmpctx();
         return "263";
+    }
+
+    if (msg_type == WIRE_GOSSIP_TIMESTAMP_FILTER) {
+        struct bitcoin_blkid chain_hash;
+        u32 first_timestamp, timestamp_range;
+
+        // C-lightning ignores extra data.
+        // rust-lightning returns error.
+        // LND accepts non-tlv extra data.
+        size_t msg_size = tal_bytelen(msg);
+        if (msg_size > 42) {
+            clean_tmpctx();
+            return std::nullopt;
+        }
+        if (!fromwire_gossip_timestamp_filter(msg, &chain_hash, &first_timestamp, &timestamp_range)) {
+            clean_tmpctx();
+            return "";
+        }
+        clean_tmpctx();
+        return "265";
     }
     clean_tmpctx();
     return "";
