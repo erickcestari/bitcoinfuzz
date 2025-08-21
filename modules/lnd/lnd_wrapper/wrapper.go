@@ -165,11 +165,11 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 	switch message.MsgType() {
 	case 256:
 	case 257:
-	//case 258:
+	case 258:
 	//case 261:
 	//case 262:
 	case 263:
-	//case 264:
+		//case 264:
 	case 265:
 		break
 	default:
@@ -191,8 +191,7 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 	}
 
 	if message.MsgType() == 258 {
-		_, err := message.(*lnwire.ChannelUpdate1).Signature.ToSignature()
-		if err != nil {
+		if !message.(*lnwire.ChannelUpdate1).MessageFlags.HasMaxHtlc() {
 			return C.CString("")
 		}
 
@@ -224,6 +223,9 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 	}
 
 	if message.MsgType() == 263 {
+		// LND accepts non-tlv extra data.
+		// C-lightning accpets only tlv extra data.
+		// rust-lightning does not accept extra data.
 		if len(message.(*lnwire.QueryChannelRange).ExtraData) != 0 {
 			return (*C.char)(unsafe.Pointer(nil))
 		}

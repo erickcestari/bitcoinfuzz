@@ -273,10 +273,10 @@ pub unsafe extern "C" fn ldk_des_gossip_message(data: *const u8, len: usize) -> 
     match msg_type {
         256 => {}
         257 => {}
-        //258 => {}
+        258 => {}
         //261 => {}
         //262 => {}
-        263 => {}
+        //263 => {}
         //264 => {}
         265 => {}
         _ => return std::ptr::null_mut(),

@@ -305,6 +305,39 @@ std::optional<std::string> clightning_parse_gossip_message(std::span<const uint8
         return "257";
     }
 
+    if (msg_type == WIRE_CHANNEL_UPDATE) {
+        secp256k1_ecdsa_signature signature;
+        struct bitcoin_blkid chain_hash;
+        struct short_channel_id short_channel_id;
+        u32 timestamp;
+        u8 message_flags, channel_flags;
+        u16 cltv_expiry_delta;
+        struct amount_msat htlc_minimum_msat, htlc_maximum_msat;
+        u32 fee_base_msat, fee_proportional_millionths;
+
+        size_t msg_size = tal_bytelen(msg);
+        std::cout << "msg_size: " << msg_size << std::endl;
+
+        if (!fromwire_channel_update(msg,
+				     &signature,
+				     &chain_hash,
+				     &short_channel_id,
+				     &timestamp,
+				     &message_flags,
+				     &channel_flags,
+				     &cltv_expiry_delta,
+				     &htlc_minimum_msat,
+				     &fee_base_msat,
+				     &fee_proportional_millionths, 
+				     &htlc_maximum_msat)) { 
+            clean_tmpctx();
+            return "";
+        }
+
+        clean_tmpctx();
+        return "258";
+    }
+
     if (msg_type == WIRE_QUERY_CHANNEL_RANGE) {
         struct bitcoin_blkid chain_hash;
         u32 first_blocknum, number_of_blocks;
