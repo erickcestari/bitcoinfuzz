@@ -316,7 +316,6 @@ std::optional<std::string> clightning_parse_gossip_message(std::span<const uint8
         u32 fee_base_msat, fee_proportional_millionths;
 
         size_t msg_size = tal_bytelen(msg);
-        std::cout << "msg_size: " << msg_size << std::endl;
 
         if (!fromwire_channel_update(msg,
 				     &signature,
@@ -330,6 +329,12 @@ std::optional<std::string> clightning_parse_gossip_message(std::span<const uint8
 				     &fee_base_msat,
 				     &fee_proportional_millionths, 
 				     &htlc_maximum_msat)) { 
+            clean_tmpctx();
+            return "";
+        }
+
+        // C-lightning doesn't require The `must_be_one` flag be set
+        if ((message_flags & ROUTING_OPT_HTLC_MAX_MSAT) != 1) {
             clean_tmpctx();
             return "";
         }

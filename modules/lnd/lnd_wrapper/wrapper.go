@@ -195,16 +195,11 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 			return C.CString("")
 		}
 
-		fmt.Println(message.(*lnwire.ChannelUpdate1).ChainHash)
-		fmt.Println(message.(*lnwire.ChannelUpdate1).ShortChannelID)
-		fmt.Println(message.(*lnwire.ChannelUpdate1).Timestamp)
-		fmt.Println(message.(*lnwire.ChannelUpdate1).MessageFlags)
-		fmt.Println(message.(*lnwire.ChannelUpdate1).ChannelFlags)
-		fmt.Println(message.(*lnwire.ChannelUpdate1).TimeLockDelta)
-		fmt.Println(message.(*lnwire.ChannelUpdate1).HtlcMinimumMsat)
-		fmt.Println(message.(*lnwire.ChannelUpdate1).BaseFee)
-		fmt.Println(message.(*lnwire.ChannelUpdate1).FeeRate)
-		fmt.Println(message.(*lnwire.ChannelUpdate1).HtlcMaximumMsat)
+		// Validate signature, but LND has a more strict check so skip it.
+		_, err := message.(*lnwire.ChannelUpdate1).Signature.ToSignature()
+		if err != nil {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
 	}
 
 	if message.MsgType() == 261 {
