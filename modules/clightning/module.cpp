@@ -349,12 +349,12 @@ std::optional<std::string> clightning_parse_gossip_message(std::span<const uint8
         struct tlv_query_channel_range_tlvs *tlvs;
 
         if (!fromwire_query_channel_range(tmpctx, msg, &chain_hash, &first_blocknum, &number_of_blocks, &tlvs)) {
+            if (!tlvs) {
+                clean_tmpctx();
+                return std::nullopt;
+            }
             clean_tmpctx();
             return "";
-        }
-        if (tal_count(tlvs) != 0) {
-            clean_tmpctx();
-            return std::nullopt;
         }
         clean_tmpctx();
         return "263";
