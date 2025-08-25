@@ -471,6 +471,24 @@ std::optional<std::string> clightning_parse_gossip_message(std::span<const uint8
         clean_tmpctx();
         return "264";
     }
+
+    if (msg_type == WIRE_REPLY_SHORT_CHANNEL_IDS_END) {
+        struct bitcoin_blkid chain;
+	    u8 complete;
+        if (!fromwire_reply_short_channel_ids_end(msg, &chain, &complete)) {
+            clean_tmpctx();
+            return "";
+        }
+        
+        // LDK returns error when complete > 1
+        if (complete > 1) {
+            clean_tmpctx();
+            return std::nullopt;
+        }
+
+        clean_tmpctx();
+        return "262";
+    }
     clean_tmpctx();
     return "";
 }

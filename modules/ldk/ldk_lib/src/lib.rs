@@ -274,8 +274,8 @@ pub unsafe extern "C" fn ldk_des_gossip_message(data: *const u8, len: usize) -> 
         256 => {}
         257 => {}
         258 => {}
-        //261 => {}
-        //262 => {}
+        261 => {}
+        262 => {}
         263 => {}
         264 => {}
         265 => {}
@@ -285,7 +285,7 @@ pub unsafe extern "C" fn ldk_des_gossip_message(data: *const u8, len: usize) -> 
     match read_gossip_message(msg_type, &data[2..]) {
         Ok(_) => {}
         Err(e) => {
-            //println!("Error: {:?}", e);
+            println!("Error: {:?}", e);
             return str_to_c_string("");
         }
     }

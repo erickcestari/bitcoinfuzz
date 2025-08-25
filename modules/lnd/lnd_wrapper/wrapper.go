@@ -164,6 +164,27 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 		if strings.Contains(err.Error(), "isn't greater than last sid") {
 			return (*C.char)(unsafe.Pointer(nil))
 		}
+
+		if msgType == 264 && strings.Contains(err.Error(), "unexpected EOF") {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
+
+		if msgType == 264 && strings.Contains(err.Error(), "tlv stream is not canonical") {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
+
+		if msgType == 264 && strings.Contains(err.Error(), "decoded varint is not canonical") {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
+
+		if msgType == 264 && strings.Contains(err.Error(), "unsupported encoding:") {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
+
+		if msgType == 264 && strings.Contains(err.Error(), "record is too large") {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
+
 		fmt.Println("error reading message")
 		fmt.Println(err.Error())
 		return C.CString("")
@@ -173,8 +194,8 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 	case 256:
 	case 257:
 	case 258:
-	//case 261:
-	//case 262:
+	case 261:
+	case 262:
 	case 263:
 	case 264:
 	case 265:
@@ -214,6 +235,10 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 			return (*C.char)(unsafe.Pointer(nil))
 		}
 
+		if len(message.(*lnwire.QueryShortChanIDs).ShortChanIDs) == 0 {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
+
 		// LND supports Zlib compression (which is deprecated), so let's skip this case
 		if message.(*lnwire.QueryShortChanIDs).EncodingType != lnwire.EncodingSortedPlain {
 			return (*C.char)(unsafe.Pointer(nil))
@@ -225,8 +250,10 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 			return (*C.char)(unsafe.Pointer(nil))
 		}
 
-		fmt.Println(message.(*lnwire.ReplyShortChanIDsEnd).Complete)
-		fmt.Println(message.(*lnwire.ReplyShortChanIDsEnd).ChainHash)
+		// LDK returns error when complete > 1
+		if message.(*lnwire.ReplyShortChanIDsEnd).Complete > 1 {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
 	}
 
 	if message.MsgType() == 263 {
@@ -243,12 +270,15 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 			return (*C.char)(unsafe.Pointer(nil))
 		}
 
+		if len(message.(*lnwire.ReplyChannelRange).ShortChanIDs) == 0 {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
+
 		// LND supports Zlib compression (which is deprecated), so let's skip this case
 		if message.(*lnwire.ReplyChannelRange).EncodingType != lnwire.EncodingSortedPlain {
 			return (*C.char)(unsafe.Pointer(nil))
 		}
 
-		fmt.Println(message.(*lnwire.ReplyChannelRange).ShortChanIDs)
 	}
 
 	if message.MsgType() == 265 {
