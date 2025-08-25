@@ -159,6 +159,13 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 
 	message, err := lnwire.ReadMessage(r, 0)
 	if err != nil {
+		// Others implementations (like LDK and C-lightning) don't require the
+		// short channel IDs to be sorted, so we'll return null if we get this error.
+		if strings.Contains(err.Error(), "isn't greater than last sid") {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
+		fmt.Println("error reading message")
+		fmt.Println(err.Error())
 		return C.CString("")
 	}
 
@@ -169,7 +176,7 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 	//case 261:
 	//case 262:
 	case 263:
-		//case 264:
+	case 264:
 	case 265:
 		break
 	default:
@@ -206,6 +213,11 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 		if len(message.(*lnwire.QueryShortChanIDs).ExtraData) != 0 {
 			return (*C.char)(unsafe.Pointer(nil))
 		}
+
+		// LND supports Zlib compression (which is deprecated), so let's skip this case
+		if message.(*lnwire.QueryShortChanIDs).EncodingType != lnwire.EncodingSortedPlain {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
 	}
 
 	if message.MsgType() == 262 {
@@ -230,6 +242,13 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 		if len(message.(*lnwire.ReplyChannelRange).ExtraData) != 0 {
 			return (*C.char)(unsafe.Pointer(nil))
 		}
+
+		// LND supports Zlib compression (which is deprecated), so let's skip this case
+		if message.(*lnwire.ReplyChannelRange).EncodingType != lnwire.EncodingSortedPlain {
+			return (*C.char)(unsafe.Pointer(nil))
+		}
+
+		fmt.Println(message.(*lnwire.ReplyChannelRange).ShortChanIDs)
 	}
 
 	if message.MsgType() == 265 {

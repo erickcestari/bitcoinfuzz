@@ -7,6 +7,7 @@ extern "C" {
     #include "common/node_id.h"
     #include "common/utils.h"
     #include "common/setup.h"
+    #include <common/decode_array.h>
     #include "common/addr.h"
     #include <bitcoin/chainparams.h>
     #include <wire/peer_wiregen.h>
@@ -378,6 +379,97 @@ std::optional<std::string> clightning_parse_gossip_message(std::span<const uint8
         }
         clean_tmpctx();
         return "265";
+    }
+
+    if (msg_type == WIRE_QUERY_SHORT_CHANNEL_IDS) {
+        struct bitcoin_blkid chain_hash;
+        u8 *encoded;
+        struct short_channel_id *scids;
+        bigsize_t *flags;
+        struct tlv_query_short_channel_ids_tlvs *tlvs;
+        if (!fromwire_query_short_channel_ids(tmpctx, msg, &chain_hash, &encoded, &tlvs)) {
+            if (!tlvs) {
+                clean_tmpctx();
+                return std::nullopt;
+            }
+            clean_tmpctx();
+            return "";
+        }
+
+        if (tlvs->query_flags) {
+            flags = decode_scid_query_flags(tmpctx, tlvs->query_flags);
+            if (!flags) {
+                std::cout << "Bad query_short_channel_ids query_flags " << tal_hex(tmpctx, msg) << std::endl;
+                clean_tmpctx();
+                return "";
+            }
+	    } else 
+            flags = NULL;
+
+        // implementations have the same compression
+        // But rust-lightning returns error when short_ids are empty.
+        // C-lightning requires the short_ids len be bigger than 0.
+        // LND accepts short_ids len 0 or bigger.
+        scids = decode_short_ids(tmpctx, encoded);
+        if (!scids) {
+            clean_tmpctx();
+            return std::nullopt;
+        }
+
+        if (!flags) {
+		/* Pretend they asked for everything. */
+            flags = tal_arr(tmpctx, bigsize_t, tal_count(scids));
+            memset(flags, 0xFF, tal_bytelen(flags));
+        } else {
+            if (tal_count(flags) != tal_count(scids)) {
+                clean_tmpctx();
+                return "";
+            }
+        }
+
+        clean_tmpctx();
+        return "261";
+    }
+
+    if (msg_type == WIRE_REPLY_CHANNEL_RANGE) {
+        struct bitcoin_blkid chain_hash;
+        u8 sync_complete;
+        u32 first_blocknum, number_of_blocks, start, end;
+        u8 *encoded;
+        const struct range_query_reply *replies;
+        struct tlv_reply_channel_range_tlvs *tlvs;
+        struct short_channel_id *scids;
+        if (!fromwire_reply_channel_range(tmpctx, msg, &chain_hash, &first_blocknum, &number_of_blocks, &sync_complete, &encoded, &tlvs)) {
+            if (!tlvs) {
+                clean_tmpctx();
+                return std::nullopt;
+            }
+
+            std::cout << "error here" << std::endl;
+            clean_tmpctx();
+            return "";
+        }
+
+        /* Beware overflow! */
+        // TODO: Check if other implementations are safe to overflow.
+        if (first_blocknum + number_of_blocks < first_blocknum) {
+            std::cout << "error her1: " << first_blocknum << " + " << number_of_blocks << " < " << first_blocknum << std::endl;
+            std::cout << "error her1" << std::endl;
+            clean_tmpctx();
+            return std::nullopt;
+        }
+
+        size_t max = tal_count(encoded);
+        std::cout << "max: " << max << std::endl;
+        scids = decode_short_ids(tmpctx, encoded);
+        if (!scids) {
+            std::cout << "error her2" << std::endl;
+            clean_tmpctx();
+            return std::nullopt;
+        }
+
+        clean_tmpctx();
+        return "264";
     }
     clean_tmpctx();
     return "";

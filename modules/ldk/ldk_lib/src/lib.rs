@@ -277,7 +277,7 @@ pub unsafe extern "C" fn ldk_des_gossip_message(data: *const u8, len: usize) -> 
         //261 => {}
         //262 => {}
         263 => {}
-        //264 => {}
+        264 => {}
         265 => {}
         _ => return std::ptr::null_mut(),
     }
