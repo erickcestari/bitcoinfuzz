@@ -246,10 +246,6 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 	}
 
 	if message.MsgType() == 262 {
-		if len(message.(*lnwire.ReplyShortChanIDsEnd).ExtraData) != 0 {
-			return (*C.char)(unsafe.Pointer(nil))
-		}
-
 		// LDK returns error when complete > 1
 		if message.(*lnwire.ReplyShortChanIDsEnd).Complete > 1 {
 			return (*C.char)(unsafe.Pointer(nil))

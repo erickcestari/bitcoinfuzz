@@ -350,10 +350,6 @@ std::optional<std::string> clightning_parse_gossip_message(std::span<const uint8
         struct tlv_query_channel_range_tlvs *tlvs;
 
         if (!fromwire_query_channel_range(tmpctx, msg, &chain_hash, &first_blocknum, &number_of_blocks, &tlvs)) {
-            if (!tlvs) {
-                clean_tmpctx();
-                return std::nullopt;
-            }
             clean_tmpctx();
             return "";
         }
@@ -383,15 +379,21 @@ std::optional<std::string> clightning_parse_gossip_message(std::span<const uint8
 
     if (msg_type == WIRE_QUERY_SHORT_CHANNEL_IDS) {
         struct bitcoin_blkid chain_hash;
-        u8 *encoded;
+        u8 *encoded_short_ids;
         struct short_channel_id *scids;
         bigsize_t *flags;
         struct tlv_query_short_channel_ids_tlvs *tlvs;
-        if (!fromwire_query_short_channel_ids(tmpctx, msg, &chain_hash, &encoded, &tlvs)) {
-            if (!tlvs) {
+        if (!fromwire_query_short_channel_ids(tmpctx, msg, &chain_hash, &encoded_short_ids, &tlvs)) {
+            if (encoded_short_ids && !tlvs) {
                 clean_tmpctx();
                 return std::nullopt;
             }
+            // if (!tlvs) {
+            //     clean_tmpctx();
+            //     return std::nullopt;
+            // } this is bad because if the parse fail for other reasons, we will return null we should check if other values aren't null first
+
+
             clean_tmpctx();
             return "";
         }
@@ -410,7 +412,7 @@ std::optional<std::string> clightning_parse_gossip_message(std::span<const uint8
         // But rust-lightning returns error when short_ids are empty.
         // C-lightning requires the short_ids len be bigger than 0.
         // LND accepts short_ids len 0 or bigger.
-        scids = decode_short_ids(tmpctx, encoded);
+        scids = decode_short_ids(tmpctx, encoded_short_ids);
         if (!scids) {
             clean_tmpctx();
             return std::nullopt;
@@ -434,17 +436,11 @@ std::optional<std::string> clightning_parse_gossip_message(std::span<const uint8
     if (msg_type == WIRE_REPLY_CHANNEL_RANGE) {
         struct bitcoin_blkid chain_hash;
         u8 sync_complete;
-        u32 first_blocknum, number_of_blocks, start, end;
+        u32 first_blocknum, number_of_blocks;
         u8 *encoded;
-        const struct range_query_reply *replies;
         struct tlv_reply_channel_range_tlvs *tlvs;
         struct short_channel_id *scids;
         if (!fromwire_reply_channel_range(tmpctx, msg, &chain_hash, &first_blocknum, &number_of_blocks, &sync_complete, &encoded, &tlvs)) {
-            if (!tlvs) {
-                clean_tmpctx();
-                return std::nullopt;
-            }
-
             std::cout << "error here" << std::endl;
             clean_tmpctx();
             return "";
