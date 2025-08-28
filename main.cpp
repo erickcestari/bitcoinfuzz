@@ -242,6 +242,57 @@ size_t LLVMFuzzerCustomMutator(uint8_t *fuzz_data, size_t size, size_t max_size,
 }
 #endif
 
+#ifdef CUSTOM_MUTATOR_P2P_LIGHTNING_MESSAGE
+// Custom mutator for Lightning P2P messages that creates lightning messages 
+// with a specified message type.
+//
+// This custom mutator does the following:
+//   1. Mutate the input using libFuzzer's default mutator `LLVMFuzzerMutate`
+//   2. Update the message type to the specified message type
+//   3. Return the mutated data with the specified message type
+
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <string>
+#include <optional>
+#include <algorithm>
+
+extern "C" size_t LLVMFuzzerMutate(uint8_t *Data, size_t Size, size_t MaxSize);
+extern "C" size_t LLVMFuzzerCustomMutator(uint8_t *fuzz_data, size_t size, size_t max_size,
+                                         unsigned int seed);
+
+size_t LLVMFuzzerCustomMutator(uint8_t *fuzz_data, size_t size, size_t max_size,
+                               unsigned int seed) {
+    // First, mutate the data using LibFuzzer's default mutator
+    size_t new_size = LLVMFuzzerMutate(fuzz_data, size, max_size);
+
+    const char* mt_env = std::getenv("P2P_LIGHTNING_MESSAGE_TYPE");
+    std::string message_type_env = mt_env ? std::string(mt_env) : std::string();
+    std::optional<std::uint16_t> message_type{std::nullopt};
+
+    if (message_type_env == "PING") {
+        message_type = 18;
+    } else if (message_type_env == "PONG") {
+        message_type = 19;
+    }
+    if (!message_type.has_value()) return new_size;
+
+    if (new_size < 2) {
+        if (max_size < 2) {
+            return new_size;
+        }
+        new_size = 2;
+    }
+
+    // Update the message type
+    fuzz_data[0] = message_type.value() >> 8;
+    fuzz_data[1] = message_type.value() & 0xFF;
+
+    return new_size;
+}
+#endif
+
 #ifdef CUSTOM_MUTATOR_BOLT11
 // We use a custom mutator to produce an input corpus that consists entirely of
 // correctly encoded bech32 strings. This enables us to efficiently fuzz the
@@ -492,6 +543,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
 
 #ifdef CUSTOM_MUTATOR_P2P_MESSAGE
   module_logger.addCustomMutator("Bitcoin P2P Message Custom Mutator");
+#endif
+
+#ifdef CUSTOM_MUTATOR_P2P_LIGHTNING_MESSAGE
+  module_logger.addCustomMutator("Lightning P2P Message Custom Mutator");
 #endif
 
   module_logger.logModules();
