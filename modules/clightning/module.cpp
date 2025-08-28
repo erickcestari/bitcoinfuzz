@@ -384,10 +384,10 @@ std::optional<std::string> clightning_parse_gossip_message(std::span<const uint8
         bigsize_t *flags;
         struct tlv_query_short_channel_ids_tlvs *tlvs;
         if (!fromwire_query_short_channel_ids(tmpctx, msg, &chain_hash, &encoded_short_ids, &tlvs)) {
-            if (encoded_short_ids && !tlvs) {
-                clean_tmpctx();
-                return std::nullopt;
-            }
+            // if (encoded_short_ids && !tlvs) {
+            //     clean_tmpctx();
+            //     return std::nullopt;
+            // }
             // if (!tlvs) {
             //     clean_tmpctx();
             //     return std::nullopt;
@@ -441,6 +441,10 @@ std::optional<std::string> clightning_parse_gossip_message(std::span<const uint8
         struct tlv_reply_channel_range_tlvs *tlvs;
         struct short_channel_id *scids;
         if (!fromwire_reply_channel_range(tmpctx, msg, &chain_hash, &first_blocknum, &number_of_blocks, &sync_complete, &encoded, &tlvs)) {
+            // if (encoded && !tlvs) {
+            //     clean_tmpctx();
+            //     return std::nullopt;
+            // }
             std::cout << "error here" << std::endl;
             clean_tmpctx();
             return "";

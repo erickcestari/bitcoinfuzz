@@ -262,10 +262,6 @@ func LndDeserializeGossip(data C.ByteArray) *C.char {
 	}
 
 	if message.MsgType() == 264 {
-		if len(message.(*lnwire.ReplyChannelRange).ExtraData) != 0 {
-			return (*C.char)(unsafe.Pointer(nil))
-		}
-
 		if len(message.(*lnwire.ReplyChannelRange).ShortChanIDs) == 0 {
 			return (*C.char)(unsafe.Pointer(nil))
 		}
