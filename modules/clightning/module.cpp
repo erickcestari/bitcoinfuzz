@@ -42,6 +42,15 @@ void init(int *argc, char ***argv) {
     }
 }
 
+static bool contains_common_chain(struct bitcoin_blkid *chains)
+{
+	for (size_t i = 0; i < tal_count(chains); i++) {
+		if (bitcoin_blkid_eq(&chains[i], &chainparams->genesis_blockhash))
+			return true;
+	}
+	return false;
+}
+
 std::string hex_encode(const unsigned char* data, size_t len) {
     std::ostringstream oss;
     oss << std::hex << std::setfill('0');
@@ -249,6 +258,28 @@ std::string clightning_des_offer(const std::string_view input) {
     return result.str();
 }
 
+static u8 *features_or_right_aligned(const tal_t *ctx, const u8 *a, const u8 *b)
+{
+    if (!a && !b) return tal_arr(ctx, u8, 0);
+    if (!a)       return tal_dup_arr(ctx, u8, b, tal_bytelen(b), 0);
+    if (!b)       return tal_dup_arr(ctx, u8, a, tal_bytelen(a), 0);
+
+    size_t la = tal_bytelen(a);
+    size_t lb = tal_bytelen(b);
+    size_t lo = (la > lb) ? la : lb;
+
+    u8 *out = tal_arr(ctx, u8, lo);
+    memset(out, 0, lo);
+
+    /* Copy both, right-aligned */
+    memcpy(out + (lo - la), a, la);
+    for (size_t i = 0; i < lb; ++i) {
+        size_t oi = lo - lb + i;   /* right-aligned index in out */
+        out[oi] |= b[i];
+    }
+    return out;
+}
+
 std::optional<std::string> clightning_parse_p2p_lightning_message(std::span<const uint8_t> buffer) {
     CleanTmpCtxGuard _cleanup;
 
@@ -282,6 +313,46 @@ std::optional<std::string> clightning_parse_p2p_lightning_message(std::span<cons
         }
 
         result << "MSG_TYPE=PONG;IGNORED=" << tal_bytelen(ignored);
+    }
+
+    if (msg_type == WIRE_INIT) {
+        u8 *globalfeatures, *features;
+	    struct tlv_init_tlvs *tlvs;
+        struct wireaddr *remote_addr;
+
+        if (!fromwire_init(tmpctx, msg, &globalfeatures, &features, &tlvs)) {
+            return "";
+        }
+        if (tlvs->remote_addr) {
+            const u8 *cursor = tlvs->remote_addr;
+            size_t len = tal_bytelen(tlvs->remote_addr);
+
+            remote_addr = tal(tmpctx, struct wireaddr);
+            if (!fromwire_wireaddr(&cursor, &len, remote_addr)) {
+                return "";
+            }
+            // C-lightning accepts additional useless bytes in their TLV parsing
+            if (len != 0) {
+                return std::nullopt;
+            }
+        }
+        u8 *features_combined = features_or_right_aligned(tmpctx, globalfeatures, features);
+
+        result << "MSG_TYPE=INIT";
+        result << ";FEATURES=" << tal_hex(tmpctx, features_combined);
+
+        if (tlvs->networks) {
+            result << ";NETWORKS=";
+            if (tlvs->networks) {
+                for (size_t i = 0; i < tal_count(tlvs->networks); i++) {
+                    result << hex_encode(tlvs->networks[i].shad.sha.u.u8, 32);
+                    result << ";";
+                }
+            }
+        }
+        if (tlvs->remote_addr) {
+            result << ";REMOTE_NETWORK_ADDRESS=" << fmt_wireaddr(tmpctx, remote_addr);
+        }
     }
 
     return result.str();

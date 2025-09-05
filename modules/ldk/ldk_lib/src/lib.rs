@@ -3,10 +3,11 @@ use lightning::bolt11_invoice::{
     Bolt11Invoice, Bolt11InvoiceDescriptionRef, Bolt11SemanticError, Currency, ParseOrSemanticError,
 };
 use lightning::io::Cursor;
-use lightning::ln::msgs;
+use lightning::ln::msgs::{self, SocketAddress};
 use lightning::offers::offer::{self, Offer};
 use lightning::util::ser::Readable;
 use std::ffi::CString;
+use std::net::Ipv6Addr;
 use std::os::raw::c_char;
 use std::{ffi::CStr, str::FromStr};
 
@@ -288,7 +289,45 @@ pub unsafe extern "C" fn ldk_parse_p2p_lightning_message(
     if msg_type == 19 {
         match msgs::Pong::read(&mut cursor) {
             Ok(pong) => {
-                return str_to_c_string(format!("MSG_TYPE=PONG;IGNORED={}", pong.byteslen).as_str());
+                return str_to_c_string(
+                    format!("MSG_TYPE=PONG;IGNORED={}", pong.byteslen).as_str(),
+                );
+            }
+            Err(_) => {
+                return str_to_c_string("");
+            }
+        }
+    }
+
+    if msg_type == 16 {
+        match msgs::Init::read(&mut cursor) {
+            Ok(init) => {
+                let mut flags = init.features.le_flags().to_vec();
+                flags.reverse();
+                let mut result = String::new();
+                result.push_str("MSG_TYPE=INIT;FEATURES=");
+                result.push_str(&flags.to_hex_string(Case::Lower));
+
+                if let Some(networks) = init.networks {
+                    if !networks.is_empty() {
+                        result.push_str(";NETWORKS=");
+                        networks.iter().for_each(|network| {
+                            result.push_str(&format!("{};", network.to_string()));
+                        });
+                    }
+                }
+
+                if let Some(address) = init.remote_network_address {
+                    result.push_str(";REMOTE_NETWORK_ADDRESS=");
+                    match address {
+                        SocketAddress::TcpIpV6 { addr, port } => {
+                            let ip = Ipv6Addr::from(addr);
+                            result.push_str(&format!("[{}]:{}", ip, port));
+                        }
+                        other => result.push_str(&other.to_string()),
+                    }
+                }
+                return str_to_c_string(result.as_str());
             }
             Err(_) => {
                 return str_to_c_string("");

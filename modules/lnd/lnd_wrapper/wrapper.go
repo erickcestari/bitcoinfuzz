@@ -155,6 +155,22 @@ func LndParseP2pLightningMessage(data *C.char, length C.int) *C.char {
 		sb.WriteString(fmt.Sprintf("%d", len(message.(*lnwire.Pong).PongBytes)))
 	}
 
+	if message.MsgType() == 16 {
+		// LND doesn't parse the extra `init_tlvs` field
+		if message.(*lnwire.Init).ExtraData != nil {
+			return nil
+		}
+		sb.WriteString("MSG_TYPE=INIT;FEATURES=")
+		err := message.(*lnwire.Init).Features.Merge(message.(*lnwire.Init).GlobalFeatures)
+		if err != nil {
+			return C.CString("")
+		}
+		var buf bytes.Buffer
+		if err := message.(*lnwire.Init).Features.EncodeBase256(&buf); err == nil {
+			sb.WriteString(fmt.Sprintf("%x", buf.Bytes()))
+		}
+	}
+
 	return C.CString(sb.String())
 }
 
