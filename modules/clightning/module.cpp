@@ -13,6 +13,7 @@ extern "C" {
     #include <bitcoin/chainparams.h>
     #include <wire/peer_wiregen.h>
     #include <ccan/tal/tal.h>
+    #include <ccan/cast/cast.h>
 }
 
 #undef template
@@ -281,6 +282,34 @@ std::optional<std::string> clightning_parse_p2p_lightning_message(std::span<cons
         }
 
         result << "MSG_TYPE=PONG;IGNORED=" << tal_bytelen(ignored);
+    }
+
+    if (msg_type == WIRE_TX_ADD_INPUT) {
+	    u8 *tx_bytes;
+        u32 sequence;
+        struct bitcoin_outpoint outpoint;
+        struct tlv_tx_add_input_tlvs *tlvs;
+        struct channel_id cid;
+		u64 serial_id;
+
+        if (!fromwire_tx_add_input(tmpctx, msg, &cid,
+						   &serial_id,
+						   &tx_bytes,
+						   &outpoint.n, &sequence,
+						   &tlvs)) {
+                            return "";
+                           }
+
+        result << "MSG_TYPE=TX_ADD_INPUT;CHANNEL_ID=" << hex_encode(cid.id, 32);
+        result << ";SERIAL_ID=" << serial_id;
+        result << ";TX_BYTES=" << tal_hex(tmpctx, tx_bytes);
+        result << ";PREV_TX=" << fmt_bitcoin_txid(tmpctx, &outpoint.txid);
+        result << ";PREV_VOUT=" << outpoint.n;
+        result << ";SEQUENCE=" << sequence;
+        // result << ";TLVS=";
+        // if (tlvs->shared_input_txid) {
+        //     result << fmt_bitcoin_txid(tmpctx, tlvs->shared_input_txid);
+        // }
     }
 
     return result.str();
