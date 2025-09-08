@@ -277,6 +277,8 @@ size_t LLVMFuzzerCustomMutator(uint8_t *fuzz_data, size_t size, size_t max_size,
         message_type = 19;
     } else if (message_type_env == "ERROR") {
         message_type = 17;
+    } else if (message_type_env == "WARNING") {
+        message_type = 1;
     }
     if (!message_type.has_value()) return new_size;
 
