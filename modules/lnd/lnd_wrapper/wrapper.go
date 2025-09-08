@@ -155,6 +155,13 @@ func LndParseP2pLightningMessage(data *C.char, length C.int) *C.char {
 		sb.WriteString(fmt.Sprintf("%d", len(message.(*lnwire.Pong).PongBytes)))
 	}
 
+	if message.MsgType() == 17 {
+		sb.WriteString("MSG_TYPE=ERROR;CHANNEL_ID=")
+		sb.WriteString(fmt.Sprintf("%x", message.(*lnwire.Error).ChanID[:]))
+		sb.WriteString(";DATA=")
+		sb.WriteString(fmt.Sprintf("%x", message.(*lnwire.Error).Data))
+	}
+
 	return C.CString(sb.String())
 }
 

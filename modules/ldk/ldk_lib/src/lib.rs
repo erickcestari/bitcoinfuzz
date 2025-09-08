@@ -3,7 +3,7 @@ use lightning::bolt11_invoice::{
     Bolt11Invoice, Bolt11InvoiceDescriptionRef, Bolt11SemanticError, Currency, ParseOrSemanticError,
 };
 use lightning::io::Cursor;
-use lightning::ln::msgs;
+use lightning::ln::msgs::{self, DecodeError};
 use lightning::offers::offer::{self, Offer};
 use lightning::util::ser::Readable;
 use std::ffi::CString;
@@ -288,7 +288,32 @@ pub unsafe extern "C" fn ldk_parse_p2p_lightning_message(
     if msg_type == 19 {
         match msgs::Pong::read(&mut cursor) {
             Ok(pong) => {
-                return str_to_c_string(format!("MSG_TYPE=PONG;IGNORED={}", pong.byteslen).as_str());
+                return str_to_c_string(
+                    format!("MSG_TYPE=PONG;IGNORED={}", pong.byteslen).as_str(),
+                );
+            }
+            Err(_) => {
+                return str_to_c_string("");
+            }
+        }
+    }
+
+    if msg_type == 17 {
+        match msgs::ErrorMessage::read(&mut cursor) {
+            Ok(error) => {
+                return str_to_c_string(
+                    format!(
+                        "MSG_TYPE=ERROR;CHANNEL_ID={};DATA={}",
+                        error.channel_id.0.to_hex_string(Case::Lower),
+                        error.data.as_bytes().to_hex_string(Case::Lower)
+                    )
+                    .as_str(),
+                );
+            }
+            // Rust-lightning try to parse the error data as a UTF-8 string.
+            // However, other implementations like LND and C-lightning, do not do this.
+            Err(DecodeError::InvalidValue) => {
+                return std::ptr::null_mut();
             }
             Err(_) => {
                 return str_to_c_string("");

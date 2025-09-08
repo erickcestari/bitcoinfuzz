@@ -283,6 +283,18 @@ std::optional<std::string> clightning_parse_p2p_lightning_message(std::span<cons
         result << "MSG_TYPE=PONG;IGNORED=" << tal_bytelen(ignored);
     }
 
+    if (msg_type == WIRE_ERROR) {
+	    struct channel_id channel;
+        u8 *data;
+
+        if (!fromwire_error(tmpctx, msg, &channel, &data)) {
+            return "";
+        }
+
+        result << "MSG_TYPE=ERROR;CHANNEL_ID=" << hex_encode(channel.id, 32);
+        result << ";DATA=" << tal_hex(tmpctx, data);
+    }
+
     return result.str();
 }
 
