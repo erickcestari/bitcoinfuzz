@@ -146,6 +146,10 @@ pub unsafe extern "C" fn ldk_des_invoice(input: *const std::os::raw::c_char) -> 
         Err(ParseOrSemanticError::SemanticError(Bolt11SemanticError::MultiplePaymentHashes)) => {
             std::ptr::null_mut()
         }
+        Err(ParseOrSemanticError::SemanticError(Bolt11SemanticError::InvalidSignature)) => {
+            println!("Invalid signature");
+            str_to_c_string("")
+        }
         // Handle invoices with multiple descriptions hashes by returning null
         // This is needed because some Lightning implementations don't require to have only one description,
         // and we need to maintain compatibility with these implementations
