@@ -1,3 +1,4 @@
+use lightning::bitcoin::consensus::Encodable;
 use lightning::bitcoin::hex::{Case, DisplayHex};
 use lightning::bolt11_invoice::{
     Bolt11Invoice, Bolt11InvoiceDescriptionRef, Bolt11SemanticError, Currency, ParseOrSemanticError,
@@ -275,7 +276,7 @@ pub unsafe extern "C" fn ldk_parse_p2p_lightning_message(
                 )
                 .as_str(),
             ),
-            // Rust-lightning try to parse the error data as a UTF-8 string. 
+            // Rust-lightning try to parse the error data as a UTF-8 string.
             // However, other implementations like LND and C-lightning, do not do this.
             Err(DecodeError::InvalidValue) => std::ptr::null_mut(),
             Err(_) => str_to_c_string(""),
@@ -289,7 +290,7 @@ pub unsafe extern "C" fn ldk_parse_p2p_lightning_message(
                 )
                 .as_str(),
             ),
-            // Rust-lightning try to parse the error data as a UTF-8 string. 
+            // Rust-lightning try to parse the error data as a UTF-8 string.
             // However, other implementations like LND and C-lightning, do not do this.
             Err(DecodeError::InvalidValue) => std::ptr::null_mut(),
             Err(_) => str_to_c_string(""),
@@ -313,6 +314,22 @@ pub unsafe extern "C" fn ldk_parse_p2p_lightning_message(
         19 => match msgs::Pong::read(&mut cursor) {
             Ok(pong) => {
                 str_to_c_string(format!("MSG_TYPE=pong;IGNORED={}", pong.byteslen).as_str())
+            }
+            Err(_) => str_to_c_string(""),
+        },
+        66 => match msgs::TxAddInput::read(&mut cursor) {
+            Ok(tx_add_input) => {
+                let tx = tx_add_input.prevtx.as_transaction();
+                let mut buf = Vec::new();
+                tx.consensus_encode(&mut buf).unwrap();
+                str_to_c_string(&format!(
+                    "MSG_TYPE=tx_add_input;CHANNEL_ID={};SERIAL_ID={};PREV_TX={};PREV_TXVOUT={};SEQUENCE={}",
+                    tx_add_input.channel_id.0.to_hex_string(Case::Lower),
+                    tx_add_input.serial_id,
+                    buf.to_hex_string(Case::Lower),
+                    tx_add_input.prevtx_out,
+                    tx_add_input.sequence
+                ))
             }
             Err(_) => str_to_c_string(""),
         },
