@@ -162,6 +162,60 @@ func LndParseP2pLightningMessage(data *C.char, length C.int) *C.char {
 	case 19:
 		sb.WriteString("MSG_TYPE=pong;IGNORED=")
 		sb.WriteString(fmt.Sprintf("%d", len(message.(*lnwire.Pong).PongBytes)))
+	case 33:
+		acceptChannel := message.(*lnwire.AcceptChannel)
+		// Both ChannelReserve, FundingAmount and DustLimit may overflow the int64 type
+		if acceptChannel.ChannelReserve < 0 || acceptChannel.DustLimit < 0 {
+			return nil
+		}
+		// If UpfrontShutdownScript, ChannelType are nil and ExtraData isn't nil, the message contains invalid TLV format
+		// so c-lightning will fail to parse it.
+		if acceptChannel.UpfrontShutdownScript == nil && acceptChannel.ChannelType == nil && acceptChannel.ExtraData != nil {
+			return nil
+		}
+		sb.WriteString("MSG_TYPE=accept_channel")
+		sb.WriteString(";TEMPORARY_CHANNEL_ID=")
+		sb.WriteString(fmt.Sprintf("%x", acceptChannel.PendingChannelID[:]))
+		sb.WriteString(";DUST_LIMIT_SATOSHIS=")
+		sb.WriteString(fmt.Sprintf("%d", acceptChannel.DustLimit))
+		sb.WriteString(";MAX_HTLC_IN_FLIGHT_MSAT=")
+		sb.WriteString(fmt.Sprintf("%d", acceptChannel.MaxValueInFlight))
+		sb.WriteString(";CHANNEL_RESERVE_SATOSHIS=")
+		sb.WriteString(fmt.Sprintf("%d", acceptChannel.ChannelReserve))
+		sb.WriteString(";HTLC_MINIMUM_MSAT=")
+		sb.WriteString(fmt.Sprintf("%d", acceptChannel.HtlcMinimum))
+		sb.WriteString(";MINIMUM_DEPTH=")
+		sb.WriteString(fmt.Sprintf("%d", acceptChannel.MinAcceptDepth))
+		sb.WriteString(";TO_SELF_DELAY=")
+		sb.WriteString(fmt.Sprintf("%d", acceptChannel.CsvDelay))
+		sb.WriteString(";MAX_ACCEPTED_HTLCS=")
+		sb.WriteString(fmt.Sprintf("%d", acceptChannel.MaxAcceptedHTLCs))
+		sb.WriteString(";FUNDING_PUBKEY=")
+		sb.WriteString(fmt.Sprintf("%x", acceptChannel.FundingKey.SerializeCompressed()))
+		sb.WriteString(";REVOCATION_BASEPOINT=")
+		sb.WriteString(fmt.Sprintf("%x", acceptChannel.RevocationPoint.SerializeCompressed()))
+		sb.WriteString(";PAYMENT_BASEPOINT=")
+		sb.WriteString(fmt.Sprintf("%x", acceptChannel.PaymentPoint.SerializeCompressed()))
+		sb.WriteString(";DELAYED_PAYMENT_BASEPOINT=")
+		sb.WriteString(fmt.Sprintf("%x", acceptChannel.DelayedPaymentPoint.SerializeCompressed()))
+		sb.WriteString(";HTLC_BASEPOINT=")
+		sb.WriteString(fmt.Sprintf("%x", acceptChannel.HtlcPoint.SerializeCompressed()))
+		sb.WriteString(";FIRST_PER_COMMITMENT_POINT=")
+		sb.WriteString(fmt.Sprintf("%x", acceptChannel.FirstCommitmentPoint.SerializeCompressed()))
+
+		if acceptChannel.UpfrontShutdownScript != nil {
+			sb.WriteString(";UPFRONT_SHUTDOWN_SCRIPT=")
+			sb.WriteString(fmt.Sprintf("%x", acceptChannel.UpfrontShutdownScript))
+		}
+
+		if acceptChannel.ChannelType != nil {
+			sb.WriteString(";CHANNEL_TYPE=")
+			var channelTypeBuf bytes.Buffer
+			channelType := lnwire.RawFeatureVector(*acceptChannel.ChannelType)
+			if err := channelType.EncodeBase256(&channelTypeBuf); err == nil {
+				sb.WriteString(fmt.Sprintf("%x", channelTypeBuf.Bytes()))
+			}
+		}
 	}
 
 	return C.CString(sb.String())

@@ -11,6 +11,7 @@ extern "C" {
     #include "common/addr.h"
     #include <common/ping.h>
     #include <bitcoin/chainparams.h>
+    #include <common/derive_basepoints.h>
     #include <wire/peer_wiregen.h>
     #include <ccan/tal/tal.h>
 }
@@ -299,6 +300,60 @@ std::optional<std::string> clightning_parse_p2p_lightning_message(std::span<cons
         }
 
         result << "MSG_TYPE=pong;IGNORED=" << tal_bytelen(ignored);
+    } else if (msg_type == WIRE_ACCEPT_CHANNEL) {
+        struct basepoints theirs;
+        struct pubkey their_funding_pubkey, first_per_commitment_point;
+        struct channel_id channel_id;
+        u16 to_self_delay, max_accepted_htlcs;
+        struct tlv_accept_channel_tlvs *accept_tlvs;
+        struct amount_msat max_htlc_value_in_flight, htlc_minimum;
+        struct amount_sat dust_limit, channel_reserve;
+        u32 minimum_depth;
+
+        if (!fromwire_accept_channel(tmpctx, msg,
+                    &channel_id,
+                    &dust_limit,
+                    &max_htlc_value_in_flight,
+                    &channel_reserve,
+                    &htlc_minimum,
+                    &minimum_depth,
+                    &to_self_delay,
+                    &max_accepted_htlcs,
+                    &their_funding_pubkey,
+                    &theirs.revocation,
+                    &theirs.payment,
+                    &theirs.delayed_payment,
+                    &theirs.htlc,
+                    &first_per_commitment_point,
+                    &accept_tlvs)) {
+                        return "";
+                    }
+
+        result << "MSG_TYPE=accept_channel";
+        result << ";TEMPORARY_CHANNEL_ID=" << fmt_channel_id(tmpctx, &channel_id);
+        result << ";DUST_LIMIT_SATOSHIS=" << dust_limit.satoshis;
+        result << ";MAX_HTLC_IN_FLIGHT_MSAT=" << max_htlc_value_in_flight.millisatoshis;
+        result << ";CHANNEL_RESERVE_SATOSHIS=" << channel_reserve.satoshis;
+        result << ";HTLC_MINIMUM_MSAT=" << htlc_minimum.millisatoshis;
+        result << ";MINIMUM_DEPTH=" << minimum_depth;
+        result << ";TO_SELF_DELAY=" << to_self_delay;
+        result << ";MAX_ACCEPTED_HTLCS=" << max_accepted_htlcs;
+        result << ";FUNDING_PUBKEY=" << fmt_pubkey(tmpctx, &their_funding_pubkey);
+        result << ";REVOCATION_BASEPOINT=" << fmt_pubkey(tmpctx, &theirs.revocation);
+        result << ";PAYMENT_BASEPOINT=" << fmt_pubkey(tmpctx, &theirs.payment);
+        result << ";DELAYED_PAYMENT_BASEPOINT=" << fmt_pubkey(tmpctx, &theirs.delayed_payment);
+        result << ";HTLC_BASEPOINT=" << fmt_pubkey(tmpctx, &theirs.htlc);
+        result << ";FIRST_PER_COMMITMENT_POINT=" << fmt_pubkey(tmpctx, &first_per_commitment_point);
+
+        if (accept_tlvs && accept_tlvs->upfront_shutdown_script) {
+            result << ";UPFRONT_SHUTDOWN_SCRIPT=";
+            result << tal_hex(tmpctx, accept_tlvs->upfront_shutdown_script);
+        }
+
+        if (accept_tlvs && accept_tlvs->channel_type) {
+            result << ";CHANNEL_TYPE=";
+            result << tal_hex(tmpctx, accept_tlvs->channel_type);
+        }
     }
 
     return result.str();
