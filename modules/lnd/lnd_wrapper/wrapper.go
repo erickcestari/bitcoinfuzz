@@ -139,6 +139,12 @@ func LndParseP2pLightningMessage(data *C.char, length C.int) *C.char {
 
 	message, err := lnwire.ReadMessage(r, 0)
 	if err != nil {
+		// Skip length validation errors to maintain compatibility with other
+		// implementations (e.g., C-Lightning, LND) that don't enforce strict
+		// address length checks during decoding.
+		if strings.Contains(err.Error(), "bytes into addrBytes") {
+			return nil
+		}
 		return C.CString("")
 	}
 	sb := strings.Builder{}
@@ -184,6 +190,15 @@ func LndParseP2pLightningMessage(data *C.char, length C.int) *C.char {
 		sb.WriteString(fmt.Sprintf("%d", fc.FundingPoint.Index))
 		sb.WriteString(";SIGNATURE=")
 		sb.WriteString(fmt.Sprintf("%x", fc.CommitSig.ToSignatureBytes()))
+	case 38:
+		messageShutdown := message.(*lnwire.Shutdown)
+		if messageShutdown.ExtraData != nil || messageShutdown.CustomRecords != nil || messageShutdown.ShutdownNonce.IsSome() {
+			return nil
+		}
+		sb.WriteString("MSG_TYPE=shutdown;CHANNEL_ID=")
+		sb.WriteString(fmt.Sprintf("%x", messageShutdown.ChannelID[:]))
+		sb.WriteString(";SCRIPTPUBKEY=")
+		sb.WriteString(fmt.Sprintf("%x", messageShutdown.Address))
 	}
 
 	return C.CString(sb.String())
