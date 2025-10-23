@@ -8,4 +8,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-lightning = { git = "https://github.com/lightningdevkit/rust-lightning.git", rev = "05f2848acfb124b981ab4fe077c8771b1ad8a18c" }
+lightning = { git = "https://github.com/erickcestari/rust-lightning.git", rev="fcc80e2c5ce0b7fc94aaa94171e67fc6407c3d40", features = ["expose_onion_utils"] }

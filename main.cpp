@@ -552,18 +552,15 @@ static void mutate_packet_keys(uint8_t* fuzz_data, unsigned int seed) {
 
 size_t LLVMFuzzerCustomMutator(uint8_t *fuzz_data, size_t size, size_t max_size,
                                unsigned int seed) {
-
     // Generate template packet if input is too small
     if (size < PACKET_SIZE) {
         return build_template_packet(fuzz_data, max_size);
     }
-
     // Optionally mutate keys
     bool should_mutate_keys = (seed % 100) < KEY_MUTATION_PROBABILITY;
     if (should_mutate_keys) {
         mutate_packet_keys(fuzz_data, seed);
     }
-
     // Step 1: Compute shared secret via ECDH
     uint8_t shared_secret[KEY_SIZE];
     if (!compute_shared_secret(
@@ -592,21 +589,18 @@ size_t LLVMFuzzerCustomMutator(uint8_t *fuzz_data, size_t size, size_t max_size,
     } else {
         return 0;
     }
-
     xor_buffers(
         decrypted_payload,
         fuzz_data + HOP_PAYLOADS_OFFSET,
         keystream,
         available_payload
     );
-
     // Step 5: Mutate the decrypted payload
     size_t mutated_size = LLVMFuzzerMutate(
         decrypted_payload, 
         available_payload, 
         HOP_PAYLOADS_SIZE
     );
-
     // Step 6: Re-encrypt the mutated payload
     uint8_t encrypted_payload[HOP_PAYLOADS_SIZE] = {0};
     xor_buffers(
@@ -615,7 +609,6 @@ size_t LLVMFuzzerCustomMutator(uint8_t *fuzz_data, size_t size, size_t max_size,
         keystream,
         mutated_size
     );
-
     // Step 7: Calculate HMAC over the encrypted payload
     uint8_t hmac[HMAC_SIZE];
     calculate_hmac(
@@ -624,7 +617,6 @@ size_t LLVMFuzzerCustomMutator(uint8_t *fuzz_data, size_t size, size_t max_size,
         HOP_PAYLOADS_SIZE,
         hmac
     );
-
     // Step 8: Reconstruct the complete packet
     return reconstruct_packet(
         fuzz_data,

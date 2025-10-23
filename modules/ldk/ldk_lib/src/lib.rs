@@ -1,11 +1,18 @@
 use lightning::bitcoin::constants::ChainHash;
 use lightning::bitcoin::hex::{Case, DisplayHex};
-use lightning::bitcoin::secp256k1::ecdsa::Signature;
+use lightning::bitcoin::secp256k1::ecdh::SharedSecret;
+use lightning::bitcoin::secp256k1::ecdsa::{RecoverableSignature, Signature};
+use lightning::bitcoin::secp256k1::{schnorr, PublicKey, Scalar, SecretKey};
 use lightning::bolt11_invoice::{
-    Bolt11Invoice, Bolt11InvoiceDescriptionRef, Bolt11SemanticError, Currency, ParseOrSemanticError,
+    Bolt11Invoice, Bolt11InvoiceDescriptionRef, Bolt11SemanticError, Currency,
+    ParseOrSemanticError, RawBolt11Invoice,
 };
-use lightning::ln::msgs::{self, DecodeError};
+use lightning::ln::inbound_payment::ExpandedKey;
+use lightning::ln::msgs::{self, DecodeError, OnionPacket, UnsignedGossipMessage};
+use lightning::ln::onion_utils::{self, OnionDecodeErr};
+use lightning::offers::invoice::UnsignedBolt12Invoice;
 use lightning::offers::offer::{self, Offer};
+use lightning::sign::{NodeSigner, PeerStorageKey, ReceiveAuthKey, Recipient};
 use lightning::util::ser::LengthReadable;
 use std::ffi::CString;
 use std::os::raw::c_char;
@@ -500,6 +507,124 @@ pub unsafe extern "C" fn ldk_parse_p2p_lightning_message(
             Err(_) => str_to_c_string(""),
         },
         _ => str_to_c_string(""),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ldk_decode_legacy_onion(data: *const u8, len: usize) -> *mut c_char {
+    struct TestEcdhSigner {
+        node_secret: SecretKey,
+    }
+    impl NodeSigner for TestEcdhSigner {
+        fn ecdh(
+            &self,
+            _recipient: Recipient,
+            other_key: &PublicKey,
+            tweak: Option<&Scalar>,
+        ) -> Result<SharedSecret, ()> {
+            let mut node_secret = self.node_secret.clone();
+            if let Some(tweak) = tweak {
+                node_secret = self.node_secret.mul_tweak(tweak).map_err(|_| ())?;
+            }
+            Ok(SharedSecret::new(other_key, &node_secret))
+        }
+        fn get_expanded_key(&self) -> ExpandedKey {
+            unreachable!()
+        }
+        fn get_node_id(&self, _recipient: Recipient) -> Result<PublicKey, ()> {
+            unreachable!()
+        }
+        fn sign_invoice(
+            &self,
+            _invoice: &RawBolt11Invoice,
+            _recipient: Recipient,
+        ) -> Result<RecoverableSignature, ()> {
+            unreachable!()
+        }
+        fn get_peer_storage_key(&self) -> PeerStorageKey {
+            unreachable!()
+        }
+        fn get_receive_auth_key(&self) -> ReceiveAuthKey {
+            unreachable!()
+        }
+        fn sign_bolt12_invoice(
+            &self,
+            _invoice: &UnsignedBolt12Invoice,
+        ) -> Result<schnorr::Signature, ()> {
+            unreachable!()
+        }
+        fn sign_gossip_message(&self, _msg: UnsignedGossipMessage) -> Result<Signature, ()> {
+            unreachable!()
+        }
+        fn sign_message(&self, _: &[u8]) -> Result<String, ()> {
+            unreachable!()
+        }
+    }
+
+    let data = std::slice::from_raw_parts(data, len);
+
+    if data.len() < 32 {
+        return str_to_c_string("");
+    }
+    let private_key = match SecretKey::from_slice(&data[0..32]) {
+        Ok(private_key) => private_key,
+        Err(_) => return str_to_c_string(""),
+    };
+    let mut data = &data[32..];
+
+    let onion_packet = match OnionPacket::read_from_fixed_length_buffer(&mut data) {
+        Ok(onion_packet) => onion_packet,
+        Err(_) => return str_to_c_string(""),
+    };
+
+    let onion_pubkey = match onion_packet.public_key {
+        Ok(onion_pubkey) => onion_pubkey,
+        Err(_) => return str_to_c_string(""),
+    };
+
+    let node_signer = TestEcdhSigner {
+        node_secret: private_key,
+    };
+    let shared_secret = node_signer
+        .ecdh(Recipient::PhantomNode, &onion_pubkey, None)
+        .unwrap();
+
+    let blinding_point: Option<PublicKey> = None;
+
+    let decoded_hop: Result<(msgs::InboundTrampolinePayload, Option<([u8; 32], Vec<u8>)>), _> =
+        onion_utils::decode_next_hop_wrapper(
+            shared_secret.secret_bytes(),
+            &onion_packet.hop_data,
+            onion_packet.hmac,
+            None,
+            (blinding_point, &node_signer),
+        );
+
+    match decoded_hop {
+        Ok((next_hop_data, Some((next_hop_hmac, new_packet_bytes)))) => {
+            println!("next_hop_hmac: {:?}", next_hop_hmac);
+            println!("new_packet_bytes: {:?}", new_packet_bytes);
+
+            str_to_c_string("")
+        }
+        Ok((next_hop_data, None)) => {
+            println!("next_hop_data");
+            str_to_c_string("")
+        }
+        Err(e) => {
+            match e {
+                OnionDecodeErr::Relay {
+                    err_msg,
+                    reason,
+                    shared_secret,
+                    trampoline_shared_secret,
+                } => {
+
+                }
+                _ => {}
+            }
+            str_to_c_string("")
+        }
     }
 }
 
