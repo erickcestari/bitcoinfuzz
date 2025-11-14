@@ -40,5 +40,6 @@ namespace bitcoinfuzz
         void TransactionEvalTarget(std::span<const uint8_t> buffer) const;
         void Bip32MasterKeygenTarget(std::span<const uint8_t> buffer) const;
         void DecodeLegacyOnionTarget(std::span<const uint8_t> buffer) const;
+        void DecodeOnionTarget(std::span<const uint8_t> buffer) const;
     };
 }
