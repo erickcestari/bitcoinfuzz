@@ -143,6 +143,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size)
   module_logger.addCustomMutator("Lightning P2P Message Custom Mutator");
 #endif
 
+#ifdef CUSTOM_MUTATOR_ONION
+  module_logger.addCustomMutator("Onion Custom Mutator");
+#endif
+
+
   module_logger.logModules();
   driver->Run(Data, Size, target);
   return 0;
