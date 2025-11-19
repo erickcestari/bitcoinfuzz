@@ -1,11 +1,18 @@
 use lightning::bitcoin::constants::ChainHash;
 use lightning::bitcoin::hex::{Case, DisplayHex};
-use lightning::bitcoin::secp256k1::ecdsa::Signature;
+use lightning::bitcoin::secp256k1::ecdh::SharedSecret;
+use lightning::bitcoin::secp256k1::ecdsa::{RecoverableSignature, Signature};
+use lightning::bitcoin::secp256k1::{schnorr, PublicKey, Scalar, SecretKey};
 use lightning::bolt11_invoice::{
-    Bolt11Invoice, Bolt11InvoiceDescriptionRef, Bolt11SemanticError, Currency, ParseOrSemanticError,
+    Bolt11Invoice, Bolt11InvoiceDescriptionRef, Bolt11SemanticError, Currency,
+    ParseOrSemanticError, RawBolt11Invoice,
 };
-use lightning::ln::msgs::{self, DecodeError, SocketAddress};
+use lightning::ln::inbound_payment::ExpandedKey;
+use lightning::ln::msgs::{self, DecodeError, OnionPacket, SocketAddress, UnsignedGossipMessage};
+use lightning::ln::onion_utils::{self, Hop};
+use lightning::offers::invoice::UnsignedBolt12Invoice;
 use lightning::offers::offer::{self, Offer};
+use lightning::sign::{NodeSigner, PeerStorageKey, ReceiveAuthKey, Recipient};
 use lightning::util::ser::LengthReadable;
 use std::ffi::CString;
 use std::os::raw::c_char;
@@ -548,6 +555,150 @@ pub unsafe extern "C" fn ldk_parse_p2p_lightning_message(
             Err(_) => str_to_c_string(""),
         },
         _ => str_to_c_string(""),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ldk_decode_onion(data: *const u8, len: usize) -> *mut c_char {
+    struct TestEcdhSigner {
+        node_secret: SecretKey,
+    }
+    impl NodeSigner for TestEcdhSigner {
+        fn ecdh(
+            &self,
+            _recipient: Recipient,
+            other_key: &PublicKey,
+            tweak: Option<&Scalar>,
+        ) -> Result<SharedSecret, ()> {
+            let mut node_secret = self.node_secret.clone();
+            if let Some(tweak) = tweak {
+                node_secret = self.node_secret.mul_tweak(tweak).map_err(|_| ())?;
+            }
+            Ok(SharedSecret::new(other_key, &node_secret))
+        }
+        fn get_expanded_key(&self) -> ExpandedKey {
+            unreachable!()
+        }
+        fn get_node_id(&self, _recipient: Recipient) -> Result<PublicKey, ()> {
+            unreachable!()
+        }
+        fn sign_invoice(
+            &self,
+            _invoice: &RawBolt11Invoice,
+            _recipient: Recipient,
+        ) -> Result<RecoverableSignature, ()> {
+            unreachable!()
+        }
+        fn get_peer_storage_key(&self) -> PeerStorageKey {
+            unreachable!()
+        }
+        fn get_receive_auth_key(&self) -> ReceiveAuthKey {
+            unreachable!()
+        }
+        fn sign_bolt12_invoice(
+            &self,
+            _invoice: &UnsignedBolt12Invoice,
+        ) -> Result<schnorr::Signature, ()> {
+            unreachable!()
+        }
+        fn sign_gossip_message(&self, _msg: UnsignedGossipMessage) -> Result<Signature, ()> {
+            unreachable!()
+        }
+        fn sign_message(&self, _: &[u8]) -> Result<String, ()> {
+            unreachable!()
+        }
+    }
+
+    let data = std::slice::from_raw_parts(data, len);
+
+    if data.len() < 32 {
+        return str_to_c_string("");
+    }
+    let Ok(private_key) = SecretKey::from_slice(&data[0..32]) else {
+        return str_to_c_string("");
+    };
+    let mut data = &data[32..];
+
+    let Ok(onion_packet) = OnionPacket::read_from_fixed_length_buffer(&mut data) else {
+        return str_to_c_string("");
+    };
+    let Ok(onion_pubkey) = onion_packet.public_key else {
+        return str_to_c_string("");
+    };
+    let node_signer = TestEcdhSigner {
+        node_secret: private_key,
+    };
+
+    let decoded_hop = onion_utils::decode_next_payment_hop(
+        Recipient::Node,
+        &onion_pubkey,
+        &onion_packet.hop_data,
+        onion_packet.hmac,
+        None,
+        None,
+        &node_signer,
+    );
+
+    match decoded_hop {
+        // TODO: Add support for the remaining hop types
+        Ok(hop) => match hop {
+            Hop::Forward { .. } => str_to_c_string("forward"),
+            Hop::TrampolineForward { .. } => str_to_c_string("trampoline_forward"),
+            Hop::TrampolineBlindedForward { .. } => str_to_c_string("trampoline_blinded_forward"),
+            Hop::BlindedForward { .. } => str_to_c_string("blinded_forward"),
+            Hop::Receive {
+                hop_data,
+                shared_secret: _,
+            } => {
+                let mut result = format!(
+                    "AMT_TO_FORWARD={};OUTGOING_CLTV_VALUE={};HMAC={}",
+                    hop_data.sender_intended_htlc_amt_msat,
+                    hop_data.cltv_expiry_height,
+                    onion_packet.hmac.to_lower_hex_string(),
+                );
+
+                if let Some(preimage) = hop_data.keysend_preimage {
+                    result.push_str(&format!(
+                        ";KEYSEND_PREIMAGE={}",
+                        preimage.0.to_lower_hex_string()
+                    ));
+                }
+
+                if let Some(payment_data) = hop_data.payment_data {
+                    result.push_str(&format!(
+                        ";PAYMENT_SECRET={}",
+                        payment_data.payment_secret.0.to_lower_hex_string()
+                    ));
+                    result.push_str(&format!(
+                        ";TOTAL_MSAT={}",
+                        payment_data.total_msat.to_string()
+                    ));
+                }
+
+                if let Some(metadata) = hop_data.payment_metadata {
+                    result.push_str(&format!(
+                        ";PAYMENT_METADATA={}",
+                        metadata.to_lower_hex_string()
+                    ));
+                }
+
+                hop_data.custom_tlvs.iter().for_each(|(key, value)| {
+                    result.push_str(&format!(
+                        ";CUSTOM_TLV_{}={}",
+                        key.to_string(),
+                        value.to_lower_hex_string()
+                    ));
+                });
+
+                str_to_c_string(&result)
+            }
+            Hop::BlindedReceive { .. } => str_to_c_string("blinded_receive"),
+            Hop::TrampolineReceive { .. } => str_to_c_string("trampoline_receive"),
+            Hop::TrampolineBlindedReceive { .. } => str_to_c_string("trampoline_blinded_receive"),
+        },
+        Err(_) => {
+            return std::ptr::null_mut();
+        }
     }
 }
 
