@@ -8,6 +8,10 @@ extern "C" {
     #include "common/utils.h"
     #include "common/setup.h"
     #include "common/features.h"
+    #include "common/blindedpath.h"
+    #include "external/libwally-core/src/secp256k1/include/secp256k1_ecdh.h"
+    #include <sodium/crypto_stream_chacha20.h>
+    #include "common/onion_decode.h"
     #include <common/decode_array.h>
     #include "common/addr.h"
     #include <common/ping.h>
@@ -16,6 +20,7 @@ extern "C" {
     #include <bitcoin/chainparams.h>
     #include <wire/peer_wiregen.h>
     #include <ccan/tal/tal.h>
+    #include <common/onion_message_parse.h>
 }
 
 #undef template
@@ -61,6 +66,15 @@ static bool ecdsa_sig_check_is_zero(const unsigned char sig64[64]) {
     if (memcmp(r, Z, 32) == 0) return true;          // r == 0
     if (memcmp(s, Z, 32) == 0) return true;          // s == 0
     return false;
+}
+
+/* Updated each time, as we run decode_onion */
+static const struct privkey *ecdh_key;
+
+int ecdh(const struct pubkey *point, struct secret *ss)
+{
+	return secp256k1_ecdh(secp256k1_ctx, ss->data, &point->pubkey,
+			   ecdh_key->secret.data, NULL, NULL);
 }
 
 std::optional<std::string> clightning_des_invoice(const std::string& input) {
@@ -638,6 +652,101 @@ std::optional<std::string> clightning_parse_p2p_lightning_message(std::span<cons
     return result.str();
 }
 
+std::optional<std::string> clightning_decode_onion(std::span<const uint8_t> buffer) {
+    CleanTmpCtxGuard _cleanup;
+
+    if (buffer.size() < 32) {
+        return "";
+    }
+
+    enum onion_wire failcode;
+    onionpacket* onion;
+    struct privkey mykey;
+    memcpy(mykey.secret.data, buffer.data(), 32);
+    ecdh_key = &mykey;
+    size_t max_onion_size = 1366;
+    size_t data_size = buffer.size() - 32;
+    size_t onion_size = data_size;
+    if (data_size > max_onion_size) {
+        onion_size = max_onion_size;
+    }
+
+    u8 *onion_routing_packet = tal_arr(tmpctx, u8, onion_size);
+    memcpy(onion_routing_packet, buffer.data() + 32, onion_size);
+
+    onion =
+      parse_onionpacket(tmpctx, onion_routing_packet, onion_size, &failcode);
+    if (!onion) {
+        return "";
+    }
+
+    struct secret ss;
+    route_step* rs;
+    if (ecdh(&onion->ephemeralkey, &ss) != 1) {
+        return "";
+    }
+    rs = process_onionpacket(tmpctx, onion, &ss, NULL, 0);
+    if (!rs) {
+        return "";
+    }
+
+	struct onion_payload *payload;
+	u64 failtlvtype;
+	size_t failtlvpos;
+	const char *explanation;
+    struct amount_msat msat_val = AMOUNT_MSAT(0);
+    struct amount_msat *msat = &msat_val;
+    u32 cltv_val = 0;
+    u32 *cltv = &cltv_val;
+
+    payload = onion_decode(tmpctx, rs, NULL, NULL, *msat, *cltv, &failtlvtype,
+                         &failtlvpos, &explanation);
+
+    if (!payload) {
+        // If parsing fails on an unknown *even* TLV type that is in the custom
+        // range (type > 65536), skip it.
+        if (std::strcmp(explanation, "Unparseable TLV") == 0  && failtlvtype > 65536) {
+            return std::nullopt;
+        };
+        return "";
+    }
+
+    std::ostringstream result;
+    result << "AMT_TO_FORWARD=" << payload->amt_to_forward.millisatoshis;
+    // Check if this is a forwarding hop (not final)
+    if (payload->forward_channel) {
+        result << ";SHORT_CHANNEL_ID=" << payload->forward_channel->u64;
+    }
+    result << ";OUTGOING_CLTV_VALUE=" << payload->outgoing_cltv;
+    result << ";HMAC=" << hex_encode(onion->hmac.bytes, 32);
+
+    if (payload->payment_metadata) {
+        result << ";PAYMENT_METADATA=" << hex_encode(payload->payment_metadata, tal_bytelen(payload->payment_metadata));
+    }
+
+    if (payload->tlv->payment_data) {
+        result << ";PAYMENT_SECRET=" << hex_encode(payload->tlv->payment_data->payment_secret.data, 32);
+        result << ";TOTAL_MSAT=" << payload->tlv->payment_data->total_msat;
+    }
+
+    if (payload->tlv->total_amount_msat) {
+        result << ";BLINDED_TOTAL_AMOUNT_MSAT=" << *payload->tlv->total_amount_msat;
+    }
+
+    if (payload->tlv->fields) {
+        for (size_t i = 0; i < tal_count(payload->tlv->fields); i++) {
+            struct tlv_field field = payload->tlv->fields[i];
+            // Skip standard TLV types (< 65536)
+            if (field.numtype < 65536) {
+                continue;
+            }
+            result << ";CUSTOM_TLV_" << field.numtype << "=" << hex_encode(field.value, field.length);
+        }
+    };
+
+    return result.str();
+}
+
 namespace bitcoinfuzz
 {
     namespace module
@@ -659,6 +768,11 @@ namespace bitcoinfuzz
         std::optional<std::string> CLightning::parse_p2p_lightning_message(std::span<const uint8_t> buffer) const
         {
             return clightning_parse_p2p_lightning_message(buffer);
+        }
+
+        std::optional<std::string> CLightning::decode_onion(std::span<const uint8_t> buffer) const
+        {
+            return clightning_decode_onion(buffer);
         }
     }
 }
