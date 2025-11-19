@@ -1,23 +1,32 @@
 package main
 
-/*
-#include <stdint.h>
-#include <stdlib.h>
-*/
-import "C"
-
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"runtime"
+	"slices"
 	"strings"
 	"unsafe"
 
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/chaincfg"
+
+	/*
+	   #include <stdint.h>
+	   #include <stdlib.h>
+	*/
+
 	sphinx "github.com/lightningnetwork/lightning-onion"
+	"github.com/lightningnetwork/lnd/htlcswitch/hop"
+	"github.com/lightningnetwork/lnd/keychain"
 	"github.com/lightningnetwork/lnd/lnwire"
+	"github.com/lightningnetwork/lnd/record"
+	"github.com/lightningnetwork/lnd/tlv"
 	"github.com/lightningnetwork/lnd/zpay32"
 )
+
+import "C"
 
 //export LndDeserializeInvoice
 func LndDeserializeInvoice(cInvoiceStr *C.char) *C.char {
@@ -462,6 +471,104 @@ func LndParseP2pLightningMessage(data *C.char, length C.int) *C.char {
 	}
 
 	return C.CString(sb.String())
+}
+
+//export LndDecodeOnion
+func LndDecodeOnion(data *C.char, length C.int) *C.char {
+	buffer := C.GoBytes(unsafe.Pointer(data), length)
+	if len(buffer) < 33 {
+		return C.CString("")
+	}
+	r := bytes.NewReader(buffer[32:])
+
+	priv, _ := btcec.PrivKeyFromBytes(buffer[:32])
+
+	var onion sphinx.OnionPacket
+	err := onion.Decode(r)
+	if err != nil {
+		return C.CString("")
+	}
+
+	log := sphinx.NewMemoryReplayLog()
+	log.Start()
+	keychain := &keychain.PrivKeyECDH{PrivKey: priv}
+	associateData := []byte{}
+	incomingCltv := uint32(0)
+
+	router := sphinx.NewRouter(keychain, log)
+	processedPacket, err := router.ProcessOnionPacket(&onion, associateData, incomingCltv)
+	if err != nil {
+		return C.CString("")
+	}
+
+	var sb strings.Builder
+
+	// TLV onion payload
+	if processedPacket.Payload.Type == sphinx.PayloadTLV {
+		payload, parsed, err := hop.ParseTLVPayload(bytes.NewReader(processedPacket.Payload.Payload))
+		if err != nil {
+			return C.CString("")
+		}
+		err = hop.ValidateTLVPayload(parsed, processedPacket.Action == sphinx.ExitNode, false)
+		if err != nil {
+			return C.CString("")
+		}
+		sb.WriteString(fmt.Sprintf("AMT_TO_FORWARD=%d;OUTGOING_CLTV_VALUE=%d", payload.FwdInfo.AmountToForward, payload.FwdInfo.OutgoingCTLV))
+		sb.WriteString(";HMAC=")
+		sb.WriteString(fmt.Sprintf("%x", onion.HeaderMAC[:]))
+
+		if payload.Metadata() != nil {
+			sb.WriteString(";PAYMENT_METADATA=")
+			sb.WriteString(fmt.Sprintf("%x", payload.Metadata()))
+		}
+
+		if payload.TotalAmtMsat() != 0 {
+			sb.WriteString(";BLINDED_TOTAL_AMOUNT_MSAT=")
+			sb.WriteString(fmt.Sprintf("%d", payload.TotalAmtMsat()))
+		}
+
+		keys := make([]tlv.Type, 0, len(parsed))
+		for key := range parsed {
+			// Skip standard TLV types (< 65536)
+			if key >= 65536 {
+				keys = append(keys, key)
+			}
+		}
+		// Sort tlv keys to ensure consistent output and be in canonical order
+		slices.Sort(keys)
+		for _, key := range keys {
+			tlv := parsed[key]
+			sb.WriteString(";CUSTOM_TLV_")
+			sb.WriteString(fmt.Sprintf("%d", key))
+			sb.WriteString("=")
+			sb.WriteString(fmt.Sprintf("%x", tlv))
+		}
+
+		return C.CString(sb.String())
+	}
+
+	// Legacy onion payload
+	sb.WriteString("AMT_TO_FORWARD=")
+	sb.WriteString(fmt.Sprintf("%d", processedPacket.ForwardingInstructions.ForwardAmount))
+	if processedPacket.Action != sphinx.ExitNode {
+		sb.WriteString(";SHORT_CHANNEL_ID=")
+		nextAddr := binary.BigEndian.Uint64(processedPacket.ForwardingInstructions.NextAddress[:])
+		sb.WriteString(fmt.Sprintf("%d", nextAddr))
+	}
+	sb.WriteString(";OUTGOING_CLTV_VALUE=")
+	sb.WriteString(fmt.Sprintf("%d", processedPacket.ForwardingInstructions.OutgoingCltv))
+	sb.WriteString(";HMAC=")
+	sb.WriteString(fmt.Sprintf("%x", onion.HeaderMAC[:]))
+
+	return C.CString(sb.String())
+}
+
+func IsFinalHop(payload *hop.Payload, parsedTypes map[tlv.Type][]byte) bool {
+	_, hasNextHop := parsedTypes[record.NextHopOnionType]
+	hasEncryptedData := payload.EncryptedData() != nil
+	isFinalHop := !hasNextHop && !hasEncryptedData
+
+	return isFinalHop
 }
 
 func main() {}
