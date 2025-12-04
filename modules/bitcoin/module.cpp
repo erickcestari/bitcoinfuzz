@@ -5,26 +5,24 @@
 #include "base58.h"
 #include "blockencodings.h"
 #include "chainparams.h"
-#include "consensus/validation.h"
 #include "consensus/tx_check.h"
+#include "consensus/validation.h"
 #include "core_io.h"
 #include "descriptor.h"
+#include "key.h"
 #include "key_io.h"
 #include "module.h"
 #include "primitives/block.h"
 #include "primitives/transaction.h"
+#include "protocol.h"
+#include "psbt.h"
 #include "script/interpreter.h"
 #include "script/miniscript.h"
 #include "script/script.h"
-#include "protocol.h"
+#include "span.h"
 #include "streams.h"
 #include "util/chaintype.h"
 #include "validation.h"
-#include "core_io.h"
-#include "key_io.h"
-#include "psbt.h"
-#include "span.h"
-#include "key.h"
 
 namespace {
 class FuzzedSignatureChecker : public BaseSignatureChecker
@@ -87,7 +85,8 @@ struct TestData {
     std::map<std::vector<unsigned char>, std::vector<unsigned char>> hash160_preimages;
 
     //! Set the precomputed data.
-    void Init() {
+    void Init()
+    {
         unsigned char keydata[32] = {1};
         // All our signatures sign (and are required to sign) this constant message.
         constexpr uint256 MESSAGE_HASH{"0000000000000000f5cd94e18b6fe77dd7aca9e35c2b0c9cbd86356c80a71065"};
@@ -136,7 +135,8 @@ struct TestData {
     }
 
     //! Get the (Schnorr or ECDSA, depending on context) signature for this pubkey.
-    const std::pair<std::vector<unsigned char>, bool>* GetSig(const MsCtx script_ctx, const Key& key) const {
+    const std::pair<std::vector<unsigned char>, bool>* GetSig(const MsCtx script_ctx, const Key& key) const
+    {
         if (!miniscript::IsTapscript(script_ctx)) {
             const auto it = dummy_sigs.find(key);
             if (it == dummy_sigs.end()) return nullptr;
@@ -161,7 +161,8 @@ struct ParserContext {
 
     constexpr ParserContext(MsCtx ctx) noexcept : script_ctx(ctx) {}
 
-    bool KeyCompare(const Key& a, const Key& b) const {
+    bool KeyCompare(const Key& a, const Key& b) const
+    {
         return a < b;
     }
 
@@ -173,7 +174,8 @@ struct ParserContext {
         return HexStr(std::span{&idx, 1});
     }
 
-    std::vector<unsigned char> ToPKBytes(const Key& key) const {
+    std::vector<unsigned char> ToPKBytes(const Key& key) const
+    {
         if (!miniscript::IsTapscript(script_ctx)) {
             return {key.begin(), key.end()};
         }
@@ -181,7 +183,8 @@ struct ParserContext {
         return {xonly_pubkey.begin(), xonly_pubkey.end()};
     }
 
-    std::vector<unsigned char> ToPKHBytes(const Key& key) const {
+    std::vector<unsigned char> ToPKHBytes(const Key& key) const
+    {
         if (!miniscript::IsTapscript(script_ctx)) {
             const auto h = Hash160(key);
             return {h.begin(), h.end()};
@@ -190,16 +193,18 @@ struct ParserContext {
         return {h.begin(), h.end()};
     }
 
-    template<typename I>
-    std::optional<Key> FromString(I first, I last) const {
+    template <typename I>
+    std::optional<Key> FromString(I first, I last) const
+    {
         if (last - first != 2) return {};
         auto idx = ParseHex(std::string(first, last));
         if (idx.size() != 1) return {};
         return TEST_DATA.dummy_keys[idx[0]];
     }
 
-    template<typename I>
-    std::optional<Key> FromPKBytes(I first, I last) const {
+    template <typename I>
+    std::optional<Key> FromPKBytes(I first, I last) const
+    {
         if (!miniscript::IsTapscript(script_ctx)) {
             Key key{first, last};
             if (key.IsValid()) return key;
@@ -211,8 +216,9 @@ struct ParserContext {
         return xonly_pubkey.GetEvenCorrespondingCPubKey();
     }
 
-    template<typename I>
-    std::optional<Key> FromPKHBytes(I first, I last) const {
+    template <typename I>
+    std::optional<Key> FromPKHBytes(I first, I last) const
+    {
         assert(last - first == 20);
         CKeyID keyid;
         std::copy(first, last, keyid.begin());
@@ -221,7 +227,8 @@ struct ParserContext {
         return it->second;
     }
 
-    MsCtx MsContext() const {
+    MsCtx MsContext() const
+    {
         return script_ctx;
     }
 };
@@ -272,8 +279,7 @@ std::optional<bool> Bitcoin::miniscript_parse(std::string str) const
     // TODO: Move it to a constructor
     static ECC_Context ecc_context{};
     static bool initialized = false;
-    if (!initialized)
-    {
+    if (!initialized) {
         SelectParams(ChainType::MAIN);
         TEST_DATA.Init();
         initialized = true;
@@ -344,8 +350,7 @@ std::optional<std::string> Bitcoin::transaction_eval(std::span<const uint8_t> bu
 std::optional<std::string> Bitcoin::address_parse(std::string str) const
 {
     static bool initialized = false;
-    if (!initialized)
-    {
+    if (!initialized) {
         SelectParams(ChainType::MAIN);
         initialized = true;
     }
@@ -394,15 +399,15 @@ std::optional<std::string> Bitcoin::addrv2_parse(std::span<const uint8_t> buffer
     } catch (const std::ios_base::failure& e) {
         // TODO: remove workaround to make it compatible with Core
         return std::nullopt;
-        //return "clearnet=0tor=0cjdns=0i2p=0";
+        // return "clearnet=0tor=0cjdns=0i2p=0";
     }
 
     return "clearnet=" + std::to_string(clearnet) + "tor=" + std::to_string(tor) +
            "cjdns=" + std::to_string(cjdns) + "i2p=" + std::to_string(i2p);
 }
 
-std::optional<std::string> Bitcoin::psbt_parse(std::span<const uint8_t> buffer) const {
-
+std::optional<std::string> Bitcoin::psbt_parse(std::span<const uint8_t> buffer) const
+{
     if (buffer.empty()) {
         return std::nullopt;
     }
@@ -429,7 +434,7 @@ std::optional<std::string> Bitcoin::psbt_parse(std::span<const uint8_t> buffer) 
         const CMutableTransaction& tx = *psbt.tx;
 
         // Extract high-level transaction properties (matching rust-bitcoin format)
-        //result += "v=" + std::to_string(tx.version) + ";";
+        // result += "v=" + std::to_string(tx.version) + ";";
         result += "lt=" + std::to_string(tx.nLockTime) + ";";
         result += "in=" + std::to_string(tx.vin.size()) + ";";
         result += "out=" + std::to_string(tx.vout.size()) + ";";
@@ -442,12 +447,12 @@ std::optional<std::string> Bitcoin::psbt_parse(std::span<const uint8_t> buffer) 
 
                 // Previous output reference in format "txid:vout"
                 result += "in" + std::to_string(i) + "prev=" +
-                         txin.prevout.hash.ToString() + ":" +
-                         std::to_string(txin.prevout.n) + ";";
+                          txin.prevout.hash.ToString() + ":" +
+                          std::to_string(txin.prevout.n) + ";";
 
                 // Sequence number
                 result += "in" + std::to_string(i) + "seq=" +
-                         std::to_string(txin.nSequence) + ";";
+                          std::to_string(txin.nSequence) + ";";
 
                 // UTXO availability (check both witness and non-witness UTXO)
                 bool has_utxo = false;
@@ -460,7 +465,7 @@ std::optional<std::string> Bitcoin::psbt_parse(std::span<const uint8_t> buffer) 
 
                 // Partial signatures count
                 result += "in" + std::to_string(i) + "sigs=" +
-                         std::to_string(psbt_input.partial_sigs.size()) + ";";
+                          std::to_string(psbt_input.partial_sigs.size()) + ";";
             }
         }
 
@@ -471,11 +476,11 @@ std::optional<std::string> Bitcoin::psbt_parse(std::span<const uint8_t> buffer) 
 
                 // Output value (cast to int64_t to match rust-bitcoin's i64 cast)
                 result += "out" + std::to_string(i) + "val=" +
-                         std::to_string(static_cast<int64_t>(txout.nValue)) + ";";
+                          std::to_string(static_cast<int64_t>(txout.nValue)) + ";";
 
                 // Output script as hex string
                 result += "out" + std::to_string(i) + "script=" +
-                         HexStr(txout.scriptPubKey) + ";";
+                          HexStr(txout.scriptPubKey) + ";";
             }
         }
 
@@ -506,7 +511,6 @@ std::optional<int> Bitcoin::cmpctblocks_parse(std::span<const uint8_t> buffer) c
     } catch (const std::exception& e) {
         return std::nullopt;
     }
-
 }
 
 std::optional<std::string> Bitcoin::bip32_master_keygen(std::span<const uint8_t> seed) const
