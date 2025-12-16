@@ -7,17 +7,23 @@ import fr.acinq.eclair.MilliSatoshi;
 import fr.acinq.eclair.TimestampSecond;
 import fr.acinq.eclair.payment.Bolt11Invoice;
 import fr.acinq.eclair.payment.Bolt11Invoice.ExtraHop;
+import fr.acinq.eclair.wire.protocol.LightningMessage;
+import fr.acinq.eclair.wire.protocol.LightningMessageCodecs;
 import fr.acinq.eclair.wire.protocol.OfferTypes.BlindedPath;
 import fr.acinq.eclair.wire.protocol.OfferTypes.ContactInfo;
 import fr.acinq.eclair.wire.protocol.OfferTypes.Offer;
 import fr.acinq.eclair.wire.protocol.OfferTypes.Offer$;
 import fr.acinq.eclair.wire.protocol.OfferTypes.OfferAmount;
 import fr.acinq.eclair.wire.protocol.OfferTypes.OfferCurrency;
+import fr.acinq.eclair.wire.protocol.Warning;
 import java.util.Currency;
 import scala.Option;
 import scala.collection.immutable.Seq;
 import scala.util.Either;
 import scala.util.Try;
+import scodec.Attempt;
+import scodec.DecodeResult;
+import scodec.bits.BitVector;
 import scodec.bits.ByteVector;
 
 public class EclairWrapper {
@@ -229,6 +235,47 @@ public class EclairWrapper {
       }
 
       return sb.toString();
+    } catch (Exception e) {
+      return "";
+    }
+  }
+
+  /**
+   * Parses a P2P Lightning message from raw bytes and returns a formatted string.
+   *
+   * @param data The raw message bytes
+   * @return Formatted string with message fields, empty string on parse failure, or "skip" string
+   *     to skip
+   */
+  public static String parseP2PLightningMessage(byte[] data) {
+    try {
+      BitVector bits = BitVector.view(data);
+      Attempt<DecodeResult<LightningMessage>> result =
+          LightningMessageCodecs.lightningMessageCodecWithFallback().decode(bits);
+
+      if (!result.isSuccessful()) {
+        int messageType = (data[0] << 8) | data[1];
+        if (messageType == 1 && result.toString().contains("tlvStream")) {
+          return "skip error";
+        }
+        return "";
+      }
+
+      LightningMessage msg = result.require().value();
+      if (msg instanceof Warning) {
+        Warning warning = (Warning) msg;
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("MSG_TYPE=warning;CHANNEL_ID=");
+        sb.append(warning.channelId().bytes().toHex());
+        sb.append(";DATA=");
+        sb.append(warning.data().toHex());
+
+        return sb.toString();
+      } else {
+        return "skip error";
+      }
+
     } catch (Exception e) {
       return "";
     }

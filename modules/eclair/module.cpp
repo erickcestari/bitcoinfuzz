@@ -14,6 +14,7 @@ static JavaVM *jvm = nullptr;
 static jclass decoderClass = nullptr;
 static jmethodID decodeBolt11InvoiceMethod = nullptr;
 static jmethodID decodeOfferMethod = nullptr;
+static jmethodID parseP2PLightningMessageMethod = nullptr;
 
 static std::string cached_classpath;
 
@@ -42,6 +43,12 @@ static bool init_jvm() {
   decodeOfferMethod = env->GetStaticMethodID(
       decoderClass, "decodeOffer", "(Ljava/lang/String;)Ljava/lang/String;");
   if (!decodeOfferMethod) {
+    return false;
+  }
+
+  parseP2PLightningMessageMethod = env->GetStaticMethodID(
+      decoderClass, "parseP2PLightningMessage", "([B)Ljava/lang/String;");
+  if (!parseP2PLightningMessageMethod) {
     return false;
   }
 
@@ -124,6 +131,48 @@ static std::optional<std::string> eclair_decode_offer(const char *offerStr) {
   return result;
 }
 
+static std::optional<std::string>
+eclair_parse_p2p_lightning_message(std::span<const uint8_t> buffer) {
+  if (!init_jvm() || !jvm) {
+    std::abort();
+  }
+
+  JNIEnv *env = nullptr;
+  jint status = jvm->GetEnv((void **)&env, JNI_VERSION_1_8);
+
+  jbyteArray jBuffer = env->NewByteArray(buffer.size());
+  if (!jBuffer) {
+    return "";
+  }
+
+  env->SetByteArrayRegion(jBuffer, 0, buffer.size(),
+                          reinterpret_cast<const jbyte *>(buffer.data()));
+
+  jstring jResult = static_cast<jstring>(env->CallStaticObjectMethod(
+      decoderClass, parseP2PLightningMessageMethod, jBuffer));
+  env->DeleteLocalRef(jBuffer);
+
+  if (!jResult) {
+    return "";
+  }
+
+  const char *resultChars = env->GetStringUTFChars(jResult, nullptr);
+  if (!resultChars) {
+    env->DeleteLocalRef(jResult);
+    return "";
+  }
+
+  std::string result(resultChars);
+  env->ReleaseStringUTFChars(jResult, resultChars);
+  env->DeleteLocalRef(jResult);
+
+  if (result == "skip error") {
+    return std::nullopt;
+  }
+
+  return result;
+}
+
 namespace bitcoinfuzz {
 namespace module {
 Eclair::Eclair(void) : BaseModule("Eclair") {}
@@ -134,6 +183,11 @@ std::optional<std::string> Eclair::deserialize_invoice(std::string str) const {
 
 std::optional<std::string> Eclair::deserialize_offer(std::string str) const {
   return eclair_decode_offer(str.c_str());
+}
+
+std::optional<std::string>
+Eclair::parse_p2p_lightning_message(std::span<const uint8_t> buffer) const {
+  return eclair_parse_p2p_lightning_message(buffer);
 }
 } // namespace module
 } // namespace bitcoinfuzz
