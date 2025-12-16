@@ -72,22 +72,41 @@ else
     echo "No CLEAN_BUILD option specified. Skipping clean step."
 fi
 
-# Build modules based on CXXFLAGS
-echo "Compiling selected modules with CXXFLAGS=$CXXFLAGS..."
-
-for flag in $(get_flags); do
-    dir=$(get_module_dir "$flag")
+# Build a single module (used by parallel execution)
+build_module() {
+    local flag=$1
+    local dir=$(get_module_dir "$flag")
+    
     if needs_rust_nightly "$flag"; then
         execute_in_dir "$dir" "rustup default nightly && make cargo && make"
     else
         execute_in_dir "$dir" "make"
     fi
-done
+}
+
+# Export functions so they're available in subshells
+export -f execute_in_dir
+export -f get_module_dir
+export -f needs_rust_nightly
+export -f build_module
+
+# Build modules based on CXXFLAGS in parallel
+echo "Compiling selected modules in parallel with CXXFLAGS=$CXXFLAGS..."
+
+flags=$(get_flags)
+if [ -n "$flags" ]; then
+    echo "$flags" | xargs -n 1 -P 0 bash -c 'build_module "$@"' _ || {
+        echo "Error: One or more module builds failed"
+        exit 1
+    }
+    echo "All module builds completed successfully!"
+else
+    echo "No modules to build."
+fi
 
 ONLY_MODULES=${ONLY_MODULES:-0}
 
 if [ "$ONLY_MODULES" -eq 0 ]; then
-     # Final build
     echo "Compiling the main project in the root..."
     make || { echo "Error: Failed to compile the main project"; exit 1; }
 fi
