@@ -7,11 +7,11 @@ CXXFLAGS += -Wall -Wextra -std=c++20 \
             -I /opt/homebrew/include \
             -I ../../external/secp256k1/include
 
-SECP256K1_LIB = ../../external/secp256k1/.libs/libsecp256k1.a
+SECP256K1_LIB = ../../external/secp256k1_2/.libs/libsecp256k1.a
 MAKE = make
 
 OBJCOPY := $(shell command -v objcopy 2> /dev/null)
-SYMBOL_PREFIX ?= orig
+SYMBOL_PREFIX ?= second
 
 # Build libsecp256k1 with sanitizer flags
 $(SECP256K1_LIB):
@@ -27,7 +27,6 @@ $(SECP256K1_LIB):
 	$(MAKE)
 
 secp256k1_symbols.map:
-
 	@echo "Generating symbol map for ALL secp256k1 symbols..."
 	@nm $(SECP256K1_LIB) | awk '/ [TDBR] / && /secp256k1/ {print $$3}' | sort -u | while read sym; do \
 		echo "$$sym $(SYMBOL_PREFIX)_$$sym"; \
@@ -45,7 +44,7 @@ module.a: $(SECP256K1_LIB) module.o secp256k1_symbols.map
 		fi \
 	done
 
-	@echo "Verifying renamed symbols in pubkey.o:"
+	@echo "Verifying renamed symbols in module.o:"
 	@nm module.o | grep secp256k1 | head -3
 
 	# Create archive with renamed Bitcoin objects

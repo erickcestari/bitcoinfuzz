@@ -11,6 +11,7 @@ def die(msg: str):
     print(f"Error: {msg}", file=sys.stderr)
     sys.exit(1)
 
+
 def run(cmd, cwd=None, quiet=False):
     if not quiet:
         loc = f"(cd {cwd}) " if cwd else ""
@@ -33,18 +34,23 @@ def run(cmd, cwd=None, quiet=False):
 
     return proc
 
+
 def execute_in_dir(dirpath: str, command: str, quiet: bool):
     path = Path(dirpath)
     if not path.is_dir():
+        print(dirpath)
         die(f"Directory {dirpath} does not exist")
     run(command, cwd=dirpath, quiet=quiet)
+
 
 def get_module_dir(flag: str) -> str:
     if flag.startswith("CUSTOM_MUTATOR_"):
         return "custommutator"
     if flag == "BITCOIN_CORE":
         return "modules/bitcoin"
-    return f"modules/{flag.lower().replace('_', '')}"
+    # return f"modules/{flag.lower().replace('_', '')}"
+    return f"modules/{flag.lower()}"
+
 
 def needs_rust_nightly(flag: str) -> bool:
     return flag in {
@@ -55,13 +61,18 @@ def needs_rust_nightly(flag: str) -> bool:
         "RUSTBITCOINKERNEL",
     }
 
+
 def should_build_sequentially(flag: str) -> bool:
-    return flag in {"SECP256K1", "BITCOINJ", "LIGHTNING_KMP"} or flag.startswith(
-        "CUSTOM_MUTATOR_"
+    return (
+        flag in {"SECP256K1", "BITCOINJ", "LIGHTNING_KMP"}
+        or flag.startswith("CUSTOM_MUTATOR_")
+        or flag.startswith("SECP256K1")
     )
+
 
 def get_flags(cxxflags: str):
     return re.findall(r"-D([A-Z0-9_]+)", cxxflags)
+
 
 def full_clean():
     print("Performing full clean...")
@@ -69,10 +80,12 @@ def full_clean():
         execute_in_dir(d, "make clean", quiet=False)
     execute_in_dir("custommutator", "make clean", quiet=False)
 
+
 def clean_by_flags(flags):
     print(f"Cleaning modules: {' '.join(flags)}")
     for flag in flags:
         execute_in_dir(get_module_dir(flag), "make clean", quiet=False)
+
 
 def build_module(flag: str, quiet: bool):
     dirpath = get_module_dir(flag)
@@ -114,6 +127,7 @@ def main():
         print("No CLEAN_BUILD option specified. Skipping clean step.")
 
     flags = get_flags(cxxflags)
+    print(flags)
     if not flags:
         print("No modules to build.")
         return
@@ -131,6 +145,7 @@ def main():
 
     sequential = [f for f in flags if should_build_sequentially(f)]
     parallel = [f for f in flags if not should_build_sequentially(f)]
+    print(parallel)
 
     seq_pid = None
 
@@ -140,6 +155,7 @@ def main():
         def run_sequential():
             print(f"Starting sequential module builds:{' '.join(sequential)}")
             for f in sequential:
+                print(f)
                 build_module(f, quiet)
 
         import threading
@@ -174,4 +190,3 @@ def main():
 
 if __name__ == "__main__":
     main()
- 

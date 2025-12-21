@@ -76,6 +76,11 @@
 #include <modules/secp256k1/module.h>
 #endif
 
+#ifdef ANOTHER_SECP
+#include <modules/another_secp/module.h>
+#endif
+
+
 #ifdef CUSTOM_MUTATOR_BOLT12_OFFER
 #include <custommutator/mutators/bolt12_offer.h>
 #endif
@@ -157,6 +162,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 #endif
 #ifdef SECP256K1
   driver->LoadModule(std::make_shared<bitcoinfuzz::module::Secp256k1>());
+#endif
+#ifdef ANOTHER_SECP
+  driver->LoadModule(std::make_shared<bitcoinfuzz::module::Secp256k1_2>());
 #endif
 
 #ifdef CUSTOM_MUTATOR_BOLT11
