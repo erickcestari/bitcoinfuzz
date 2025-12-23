@@ -34,41 +34,30 @@ secp256k1_symbols.map:
 	done > $@
 	@echo "Generated $$(wc -l < $@) symbol mappings"
 
-module.a: $(SECP256K1_LIB) module.o secp256k1_symbols.map
-	bash ../../merge.sh module.a $(SECP256K1_LIB) module.o
-
-	@echo "Renaming secp256k1 symbols in Bitcoin object files..."
-	@for obj in module.o ; do \
-		if [ -f "$$obj" ]; then \
-			echo "  Renaming symbols in $$obj..."; \
-			$(OBJCOPY) --redefine-syms=secp256k1_symbols.map $$obj; \
-		fi \
-	done
-
-	@echo "Verifying renamed symbols in pubkey.o:"
-	@nm module.o | grep secp256k1 | head -3
-
-	# Create archive with renamed Bitcoin objects
-	@echo "Creating archive with renamed objects..."
-	$(AR) rcs $@ module.o
-
+secp256k1_merged.o: $(SECP256K1_LIB)
+	@echo "Extracting and merging secp256k1 library objects..."
 	mkdir -p tmp_obj
-	# Extract secp256k1 objects and rename ONLY secp256k1_* symbols
 	cd tmp_obj && $(AR) x ../$(SECP256K1_LIB)
-	@echo "Renaming only secp256k1_* symbols (preserving ASAN/sanitizer symbols)..."
-	cd tmp_obj && for obj in *.o; do \
-		for sym in $$(nm $$obj | awk '{print $$3}'); do \
-			$(OBJCOPY) --redefine-sym $$sym=$(SYMBOL_PREFIX)_$$sym $$obj 2>/dev/null || true; \
-		done; \
-		for sym in $$(nm $$obj | awk '{print $$3}'); do \
-			$(OBJCOPY) --redefine-sym $$sym=$(SYMBOL_PREFIX)_$$sym $$obj 2>/dev/null || true; \
-		done; \
-		for sym in $$(nm $$obj | awk '{print $$3}'); do \
-			$(OBJCOPY) --redefine-sym $$sym=$(SYMBOL_PREFIX)_$$sym $$obj 2>/dev/null || true; \
-		done; \
-	done
-	$(AR) rcs $@ tmp_obj/*.o
-	rm -rf tmp_obj/*
+	# Use partial linking to merge all objects
+	ld -r -o secp256k1_merged_tmp.o tmp_obj/*.o
+	rm -rf tmp_obj
+	# Remove COMDAT group sections to avoid conflicts with other secp256k1 copies
+	$(OBJCOPY) --remove-section=.group secp256k1_merged_tmp.o $@
+	rm -f secp256k1_merged_tmp.o
+
+module.a: $(SECP256K1_LIB) module.o secp256k1_symbols.map secp256k1_merged.o
+	@echo "Renaming secp256k1 symbols in module.o..."
+	$(OBJCOPY) --redefine-syms=secp256k1_symbols.map module.o
+
+	@echo "Verifying renamed symbols in module.o:"
+	@nm module.o | grep secp256k1 | head -5 || echo "No secp256k1 symbols found (good if all renamed)"
+
+	@echo "Renaming symbols in merged secp256k1 object..."
+	$(OBJCOPY) --redefine-syms=secp256k1_symbols.map secp256k1_merged.o
+
+	# Create archive with renamed objects
+	@echo "Creating archive with renamed objects..."
+	$(AR) rcs $@ module.o secp256k1_merged.o
 
 module.o: module.cpp module.h
 	$(CXX) $(CXXFLAGS) -I . -fPIC -c module.cpp -o module.o
@@ -80,7 +69,8 @@ check-format:
 	clang-format -Werror --fail-on-incomplete-format -n ./module.cpp ./module.h
 
 clean:
-	rm -f *.o *.a
+	rm -f *.o *.a secp256k1_symbols.map secp256k1_merged.o
+	rm -rf tmp_obj
 	cd ../../external/secp256k1 && $(MAKE) clean || true
 
 .PHONY: clean

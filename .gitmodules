@@ -15,3 +15,9 @@
 	url = https://github.com/bitcoin-core/secp256k1.git
 	ignore = all
 	branch = master
+
+[submodule "external/secp256k1_2"]
+	path = external/secp256k1_2
+	url = https://github.com/bitcoin-core/secp256k1.git
+	ignore = all
+	branch = master

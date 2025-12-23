@@ -17,16 +17,16 @@ extern "C" {
 #define SECP256K1_SIGNATURE_DER_MAX_LEN 74
 #define SECP256K1_SHARED_SECRET_LEN 32
 
-secp256k1_context *secp256k1_ctx;
+secp256k1_context *secp256k1_ctx_2;
 
-void init(int *argc, char ***argv) {
-  if (!secp256k1_ctx) {
-    secp256k1_ctx = secp256k1_context_create(SECP256K1_CONTEXT_NONE);
-    assert(secp256k1_ctx);
+void init_2(int *argc, char ***argv) {
+  if (!secp256k1_ctx_2) {
+    secp256k1_ctx_2 = secp256k1_context_create(SECP256K1_CONTEXT_NONE);
+    assert(secp256k1_ctx_2);
   }
 }
 
-std::string hex_encode(const unsigned char *data, size_t len) {
+std::string hex_encode_2(const unsigned char *data, size_t len) {
   std::ostringstream oss;
   oss << std::hex << std::setfill('0');
   for (size_t i = 0; i < len; ++i) {
@@ -36,52 +36,52 @@ std::string hex_encode(const unsigned char *data, size_t len) {
 }
 
 std::optional<std::string>
-secp256k1_private_to_public_key(std::span<const uint8_t> buffer) {
+secp256k1_private_to_public_key_2(std::span<const uint8_t> buffer) {
   int ret = 0;
   secp256k1_pubkey pubkey;
   size_t pubkey_len = SECP256K1_PUBKEY_COMPRESSED_LEN;
   std::vector<uint8_t> pubkey_compressed(pubkey_len);
   const uint8_t *privkey = buffer.data();
 
-  if (!secp256k1_ec_seckey_verify(secp256k1_ctx, privkey)) {
+  if (!secp256k1_ec_seckey_verify(secp256k1_ctx_2, privkey)) {
     return std::nullopt;
   }
 
-  ret = secp256k1_ec_pubkey_create(secp256k1_ctx, &pubkey, privkey);
+  ret = secp256k1_ec_pubkey_create(secp256k1_ctx_2, &pubkey, privkey);
   ret = ret && secp256k1_ec_pubkey_serialize(
-                   secp256k1_ctx, pubkey_compressed.data(), &pubkey_len,
+                   secp256k1_ctx_2, pubkey_compressed.data(), &pubkey_len,
                    &pubkey, SECP256K1_EC_COMPRESSED);
   if (!ret) {
     return "";
   }
 
-  return hex_encode(pubkey_compressed.data(), pubkey_len);
+  return hex_encode_2(pubkey_compressed.data(), pubkey_len);
 }
 
 std::optional<std::string>
-secp256k1_sign_compact(std::span<const uint8_t> buffer,
+secp256k1_sign_compact_2(std::span<const uint8_t> buffer,
                        std::span<const uint8_t> hash) {
   int ret = 0;
   secp256k1_ecdsa_signature signature;
   std::vector<uint8_t> signature_compact(SECP256K1_SIGNATURE_COMPACT_LEN);
   const uint8_t *privkey = buffer.data();
 
-  if (!secp256k1_ec_seckey_verify(secp256k1_ctx, privkey)) {
+  if (!secp256k1_ec_seckey_verify(secp256k1_ctx_2, privkey)) {
     return std::nullopt;
   }
 
-  ret = secp256k1_ecdsa_sign(secp256k1_ctx, &signature, hash.data(), privkey,
+  ret = secp256k1_ecdsa_sign(secp256k1_ctx_2, &signature, hash.data(), privkey,
                              nullptr, nullptr);
   ret = ret && secp256k1_ecdsa_signature_serialize_compact(
-                   secp256k1_ctx, signature_compact.data(), &signature);
+                   secp256k1_ctx_2, signature_compact.data(), &signature);
   if (!ret) {
     return "";
   }
 
-  return hex_encode(signature_compact.data(), SECP256K1_SIGNATURE_COMPACT_LEN);
+  return hex_encode_2(signature_compact.data(), SECP256K1_SIGNATURE_COMPACT_LEN);
 }
 
-std::optional<std::string> secp256k1_sign_der(std::span<const uint8_t> buffer,
+std::optional<std::string> secp256k1_sign_der_2(std::span<const uint8_t> buffer,
                                               std::span<const uint8_t> hash) {
   int ret = 0;
   secp256k1_ecdsa_signature signature;
@@ -89,23 +89,23 @@ std::optional<std::string> secp256k1_sign_der(std::span<const uint8_t> buffer,
   std::vector<uint8_t> signature_der(signature_der_len);
   const uint8_t *privkey = buffer.data();
 
-  if (!secp256k1_ec_seckey_verify(secp256k1_ctx, privkey)) {
+  if (!secp256k1_ec_seckey_verify(secp256k1_ctx_2, privkey)) {
     return std::nullopt;
   }
 
-  ret = secp256k1_ecdsa_sign(secp256k1_ctx, &signature, hash.data(), privkey,
+  ret = secp256k1_ecdsa_sign(secp256k1_ctx_2, &signature, hash.data(), privkey,
                              nullptr, nullptr);
   ret = ret && secp256k1_ecdsa_signature_serialize_der(
-                   secp256k1_ctx, signature_der.data(), &signature_der_len,
+                   secp256k1_ctx_2, signature_der.data(), &signature_der_len,
                    &signature);
   if (!ret) {
     return "";
   }
 
-  return hex_encode(signature_der.data(), signature_der_len);
+  return hex_encode_2(signature_der.data(), signature_der_len);
 }
 
-std::optional<bool> secp256k1_sign_verify(std::span<const uint8_t> buffer,
+std::optional<bool> secp256k1_sign_verify_2(std::span<const uint8_t> buffer,
                                           std::span<const uint8_t> hash,
                                           std::span<const uint8_t> sign) {
   int ret = 0;
@@ -113,74 +113,74 @@ std::optional<bool> secp256k1_sign_verify(std::span<const uint8_t> buffer,
   secp256k1_pubkey pubkey;
   const uint8_t *privkey = buffer.data();
 
-  if (!secp256k1_ec_seckey_verify(secp256k1_ctx, privkey)) {
+  if (!secp256k1_ec_seckey_verify(secp256k1_ctx_2, privkey)) {
     return std::nullopt;
   }
 
-  ret = secp256k1_ec_pubkey_create(secp256k1_ctx, &pubkey, privkey);
-  ret = ret && secp256k1_ecdsa_signature_parse_der(secp256k1_ctx, &signature,
+  ret = secp256k1_ec_pubkey_create(secp256k1_ctx_2, &pubkey, privkey);
+  ret = ret && secp256k1_ecdsa_signature_parse_der(secp256k1_ctx_2, &signature,
                                                    sign.data(), sign.size());
   ret = ret &&
-        secp256k1_ecdsa_verify(secp256k1_ctx, &signature, hash.data(), &pubkey);
+        secp256k1_ecdsa_verify(secp256k1_ctx_2, &signature, hash.data(), &pubkey);
 
   return ret == 1;
 }
 
 std::optional<std::string>
-secp256k1_ecdh_generate(std::span<const uint8_t> buffer,
+secp256k1_ecdh_generate_2(std::span<const uint8_t> buffer,
                         std::span<const uint8_t> pubkey_buf) {
   int ret = 0;
   secp256k1_pubkey pubkey;
   std::vector<uint8_t> shared_secret(SECP256K1_SHARED_SECRET_LEN);
   const uint8_t *privkey = buffer.data();
 
-  if (!secp256k1_ec_seckey_verify(secp256k1_ctx, privkey)) {
+  if (!secp256k1_ec_seckey_verify(secp256k1_ctx_2, privkey)) {
     return std::nullopt;
   }
 
-  ret = ret = secp256k1_ec_pubkey_parse(secp256k1_ctx, &pubkey,
+  ret = ret = secp256k1_ec_pubkey_parse(secp256k1_ctx_2, &pubkey,
                                         pubkey_buf.data(), pubkey_buf.size());
-  ret = ret && secp256k1_ecdh(secp256k1_ctx, shared_secret.data(), &pubkey,
+  ret = ret && secp256k1_ecdh(secp256k1_ctx_2, shared_secret.data(), &pubkey,
                               privkey, nullptr, nullptr);
   if (!ret) {
     return "";
   }
 
-  return hex_encode(shared_secret.data(), SECP256K1_SHARED_SECRET_LEN);
+  return hex_encode_2(shared_secret.data(), SECP256K1_SHARED_SECRET_LEN);
 }
 
 namespace bitcoinfuzz {
 namespace module {
-Secp256k1_2::Secp256k1_2(void) : BaseModule("Secp256k1_2") { init(nullptr, nullptr); }
+Secp256k1_2::Secp256k1_2(void) : BaseModule("Secp256k1_2") { init_2(nullptr, nullptr); }
 
 std::optional<std::string>
 Secp256k1_2::private_to_public_key(std::span<const uint8_t> buffer) const {
-  return secp256k1_private_to_public_key(buffer);
+  return secp256k1_private_to_public_key_2(buffer);
 }
 
 std::optional<std::string>
 Secp256k1_2::sign_compact(std::span<const uint8_t> buffer,
                         std::span<const uint8_t> hash) const {
-  return secp256k1_sign_compact(buffer, hash);
+  return secp256k1_sign_compact_2(buffer, hash);
 }
 
 std::optional<std::string>
 Secp256k1_2::sign_der(std::span<const uint8_t> buffer,
                     std::span<const uint8_t> hash) const {
-  return secp256k1_sign_der(buffer, hash);
+  return secp256k1_sign_der_2(buffer, hash);
 }
 
 std::optional<bool>
 Secp256k1_2::sign_verify(std::span<const uint8_t> buffer,
                        std::span<const uint8_t> hash,
                        std::span<const uint8_t> sign) const {
-  return secp256k1_sign_verify(buffer, hash, sign);
+  return secp256k1_sign_verify_2(buffer, hash, sign);
 }
 
 std::optional<std::string>
 Secp256k1_2::ecdh(std::span<const uint8_t> buffer,
                 std::span<const uint8_t> pubkey) const {
-  return secp256k1_ecdh_generate(buffer, pubkey);
+  return secp256k1_ecdh_generate_2(buffer, pubkey);
 }
 
 } // namespace module
