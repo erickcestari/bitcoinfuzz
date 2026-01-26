@@ -1,6 +1,6 @@
 [lib]
 name = "rust_miniscript_lib"
-crate-type = ["staticlib"]
+crate-type = ["cdylib"]
 
 [package]
 name = "rust_miniscript_lib"

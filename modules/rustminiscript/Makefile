@@ -1,8 +1,15 @@
 all: module.a
 
 CXXFLAGS += -Wall -Wextra -fsanitize=address,fuzzer -std=c++20 -I ../../include
-# MacOS: ./rust_miniscript_lib/target/aarch64-apple-darwin/release/librust_bitcoin_lib.a
-RUST_MINISCRIPT_LIB_PATH := ./rust_miniscript_lib/target/release/librust_miniscript_lib.a
+
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S), Darwin)
+  RUST_LIB_EXT := dylib
+else
+  RUST_LIB_EXT := so
+endif
+
+RUST_MINISCRIPT_LIB_PATH := ./rust_miniscript_lib/target/release/librust_miniscript_lib.$(RUST_LIB_EXT)
 
 $(RUST_MINISCRIPT_LIB_PATH):
 	cd rust_miniscript_lib && \
@@ -15,12 +22,12 @@ $(RUST_MINISCRIPT_LIB_PATH):
 		-C llvm-args=-sanitizer-coverage-level=4 \
 		-C llvm-args=-simplifycfg-branch-fold-threshold=0" \
 	cargo +nightly build --release
+	cp $(RUST_MINISCRIPT_LIB_PATH) ../../librust_miniscript_lib.$(RUST_LIB_EXT)
 
 cargo: $(RUST_MINISCRIPT_LIB_PATH)
 
 module.a: module.o $(RUST_MINISCRIPT_LIB_PATH)
-	bash ../../merge.sh module.a $(RUST_MINISCRIPT_LIB_PATH) module.o
-	ranlib module.a
+	ar rcs module.a module.o
 
 module.o: module.cpp module.h
 	$(CXX) $(CXXFLAGS) -I . -fPIC -c module.cpp -o module.o
