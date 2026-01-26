@@ -67,6 +67,9 @@ public:
   virtual std::optional<std::string>
   bip32_deserialize_extended_key(std::span<const uint8_t> buffer) const;
 
+  virtual std::optional<std::string>
+  bip39_mnemonic_to_seed(std::string mnemonic) const;
+
   virtual ~BaseModule() noexcept;
 };
 } // namespace bitcoinfuzz

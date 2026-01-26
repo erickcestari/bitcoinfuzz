@@ -230,4 +230,26 @@ public static class Bridge
     {
         if (ptr != IntPtr.Zero) Marshal.FreeHGlobal(ptr);
     }
+
+    [UnmanagedCallersOnly(EntryPoint = "nbitcoin_bip39_mnemonic_to_seed")]
+    public static IntPtr Bip39MnemonicToSeed(IntPtr mnemonicPtr)
+    {
+        if (mnemonicPtr == IntPtr.Zero)
+            return Marshal.StringToHGlobalAnsi("INVALID");
+
+        string mnemonic = Marshal.PtrToStringUTF8(mnemonicPtr) ?? "";
+        if (string.IsNullOrEmpty(mnemonic))
+            return Marshal.StringToHGlobalAnsi("INVALID");
+
+        try
+        {
+            var mnemonicObj = new Mnemonic(mnemonic, Wordlist.English);
+            byte[] seed = mnemonicObj.DeriveSeed("");
+            return Marshal.StringToHGlobalAnsi(Hex(seed));
+        }
+        catch
+        {
+            return Marshal.StringToHGlobalAnsi("INVALID");
+        }
+    }
 }

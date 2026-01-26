@@ -12,6 +12,8 @@ public:
   BitcoinJ(void);
   std::optional<std::string>
   bip32_master_keygen(std::span<const uint8_t> buffer) const override;
+  std::optional<std::string>
+  bip39_mnemonic_to_seed(std::string mnemonic) const override;
   ~BitcoinJ() noexcept override = default;
 };
 } // namespace module

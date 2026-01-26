@@ -137,4 +137,9 @@ BaseModule::decode_ellswift(std::span<const uint8_t> buffer) const {
   return std::nullopt;
 }
 
+std::optional<std::string>
+BaseModule::bip39_mnemonic_to_seed(std::string mnemonic) const {
+  return std::nullopt;
+}
+
 } // namespace bitcoinfuzz

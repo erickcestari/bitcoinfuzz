@@ -130,6 +130,12 @@ char *embit_psbt_parse(const uint8_t *data, size_t len) {
       data, len, "psbt_parse", create_bytes_object, convert_to_string);
 }
 
+char *embit_bip39_mnemonic_to_seed(std::string input) {
+  return call_python_function<const char *, char *>(
+      input.c_str(), input.size(), "bip39_mnemonic_to_seed", create_string_object,
+      convert_to_string);
+}
+
 namespace bitcoinfuzz {
 namespace module {
 Embit::Embit(void) : BaseModule("Embit") {}
@@ -153,6 +159,17 @@ std::optional<bool> Embit::descriptor_parse(std::string str) const {
 std::optional<std::string>
 Embit::psbt_parse(std::span<const uint8_t> buffer) const {
   auto result_ptr = embit_psbt_parse(buffer.data(), buffer.size());
+  if (result_ptr == nullptr)
+    return std::nullopt;
+
+  std::string result(result_ptr);
+  free(result_ptr);
+  return result;
+}
+
+std::optional<std::string>
+Embit::bip39_mnemonic_to_seed(std::string mnemonic) const {
+  auto result_ptr = embit_bip39_mnemonic_to_seed(mnemonic);
   if (result_ptr == nullptr)
     return std::nullopt;
 

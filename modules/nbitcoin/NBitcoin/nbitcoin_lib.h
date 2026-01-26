@@ -15,4 +15,6 @@ extern "C" char *nbitcoin_psbt_parse(const uint8_t *data, size_t len);
 extern "C" char *nbitcoin_bip32_deserialize_extended_key(const uint8_t *data,
                                                          size_t len);
 
+extern "C" char *nbitcoin_bip39_mnemonic_to_seed(const char *mnemonic);
+
 extern "C" void nbitcoin_free_c_string(void *ptr);

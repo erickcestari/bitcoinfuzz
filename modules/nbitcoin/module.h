@@ -21,6 +21,8 @@ public:
   psbt_parse(std::span<const uint8_t> buffer) const override;
   std::optional<std::string> bip32_deserialize_extended_key(
       std::span<const uint8_t> buffer) const override;
+  std::optional<std::string>
+  bip39_mnemonic_to_seed(std::string mnemonic) const override;
   ~NBitcoin() noexcept override = default;
 };
 } // namespace module

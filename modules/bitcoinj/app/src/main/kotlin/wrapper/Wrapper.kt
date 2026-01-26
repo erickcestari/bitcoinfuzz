@@ -2,6 +2,7 @@ package wrapper
 
 import org.bitcoinj.base.BitcoinNetwork
 import org.bitcoinj.crypto.HDKeyDerivation
+import org.bitcoinj.crypto.MnemonicCode
 
 object Wrapper {
     @JvmStatic external fun init(): Unit
@@ -25,6 +26,22 @@ object Wrapper {
             } else {
                 ""
             }
+        }
+    }
+
+    /**
+     * JNI entry point. Takes a mnemonic string and returns the derived seed as hex.
+     * Returns "INVALID" if the mnemonic is not valid.
+     */
+    @JvmStatic
+    fun mnemonicToSeed(mnemonic: String): String {
+        return try {
+            val words = mnemonic.trim().split("\\s+".toRegex())
+            MnemonicCode.INSTANCE.check(words)
+            val seed = MnemonicCode.toSeed(words, "")
+            seed.joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            "INVALID"
         }
     }
 }

@@ -1,6 +1,7 @@
 from embit.descriptor.miniscript import Miniscript
 from embit.descriptor import Descriptor
 from embit.psbt import PSBT
+from embit.bip39 import mnemonic_to_seed, mnemonic_is_valid
 
 
 def miniscript_parse(input):
@@ -71,3 +72,13 @@ def psbt_parse(data):
         return ";".join(result) + ";"
     except Exception as _:
         return None
+
+
+def bip39_mnemonic_to_seed(mnemonic):
+    try:
+        if not mnemonic_is_valid(mnemonic):
+            return "INVALID"
+        seed = mnemonic_to_seed(mnemonic, password="")
+        return seed.hex()
+    except Exception as _:
+        return "INVALID"

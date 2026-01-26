@@ -314,3 +314,18 @@ services:
     env_file: .env
     volumes:
       - ./docker:/app/data
+
+  bip39_mnemonic_to_seed:
+    build:
+      context: .
+      tags:
+        - bitcoinfuzz:bip39_mnemonic_to_seed
+      args:
+        CXXFLAGS: "-DEMBIT -DNBITCOIN -DBITCOINJ"
+        FUZZ: bip39_mnemonic_to_seed
+    environment:
+      LIBFUZZ_DETECT_LEAKS: 0
+      ASAN_OPTIONS: detect_leaks=0
+    env_file: .env
+    volumes:
+      - ./docker:/app/data

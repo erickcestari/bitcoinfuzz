@@ -45,5 +45,14 @@ std::optional<std::string> NBitcoin::bip32_deserialize_extended_key(
   nbitcoin_free_c_string(p);
   return s;
 }
+std::optional<std::string>
+NBitcoin::bip39_mnemonic_to_seed(std::string mnemonic) const {
+  char *p = nbitcoin_bip39_mnemonic_to_seed(mnemonic.c_str());
+  if (!p)
+    return std::nullopt;
+  std::string s(p);
+  nbitcoin_free_c_string(p);
+  return s;
+}
 } // namespace module
 } // namespace bitcoinfuzz
