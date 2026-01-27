@@ -118,7 +118,7 @@ DynamicKernel::DynamicKernel(std::string const &name,
   } else {
     dlerror();
     void *handle =
-        dlmopen(LM_ID_NEWLM, library_path.c_str(), RTLD_NOW | RTLD_LOCAL);
+        dlopen(library_path.c_str(), RTLD_NOW | RTLD_GLOBAL);
     if (!handle) {
       throw std::runtime_error(dlerror());
     }
@@ -191,7 +191,7 @@ DynamicKernel::~DynamicKernel() noexcept {
 
 char *
 DynamicKernel::libbitcoinkernel_block(std::span<const uint8_t> buffer) const {
-  KernelApiTableGuard guard{*loaded_api_table};
+  KernelApiTableGuard guard{*this->loaded_api_table};
   try {
     std::span<const std::byte> raw_span{(const std::byte *)buffer.data(),
                                         buffer.size()};
