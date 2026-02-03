@@ -6,6 +6,7 @@ use bitcoin::bip32::Fingerprint;
 use bitcoin::bip32::Xpriv;
 use bitcoin::bip32::Xpub;
 use bitcoin::consensus::{deserialize_partial, encode, serialize};
+use bitcoin::hex::DisplayHex;
 use bitcoin::script::ScriptExt;
 use bitcoin::script::ScriptPubKeyBuf;
 use bitcoin::script::ScriptPubKeyExt;
@@ -159,40 +160,99 @@ pub unsafe extern "C" fn rust_bitcoin_psbt_parse(data: *const u8, len: usize) ->
     match bitcoin::psbt::Psbt::deserialize(data_slice) {
         Ok(psbt) => {
             let mut result = String::new();
+            let tx = psbt.unsigned_tx;
 
-            //result.push_str(&format!("v={};", psbt.unsigned_tx.version));
-            result.push_str(&format!("lt={};", psbt.unsigned_tx.lock_time));
-            result.push_str(&format!("in={};", psbt.inputs.len()));
-            result.push_str(&format!("out={};", psbt.outputs.len()));
-            for (i, input) in psbt.unsigned_tx.inputs.iter().enumerate() {
-                if i < psbt.inputs.len() {
-                    result.push_str(&format!(
-                        "in{}prev={}:{};",
-                        i, input.previous_output.txid, input.previous_output.vout
-                    ));
-                    result.push_str(&format!("in{}seq={};", i, input.sequence));
+            result.push_str(&format!("tx.version={};", tx.version));
+            result.push_str(&format!("tx.locktime={};", tx.lock_time));
+            result.push_str(&format!("tx.inputs={};", tx.inputs.len()));
+            result.push_str(&format!("tx.outputs={};", tx.outputs.len()));
 
-                    let psbt_input = &psbt.inputs[i];
+            result.push_str(&format!("psbt.inputs={};", psbt.inputs.len()));
+            result.push_str(&format!("psbt.outputs={};", psbt.outputs.len()));
 
-                    if psbt_input.witness_utxo.is_some() || psbt_input.non_witness_utxo.is_some() {
-                        result.push_str(&format!("in{}utxo=1;", i));
+            result.push_str("tx_inputs=[");
+            for input in tx.inputs.iter() {
+                result.push_str(&format!(
+                    "{{txid={}:{};",
+                    input.previous_output.txid, input.previous_output.vout
+                ));
+                result.push_str(&format!("sequence={};", input.sequence));
+                result.push_str(&format!("scriptsig={:x};", input.script_sig));
+                result.push_str(&format!("witness_stack="));
+                for (j, element) in input.witness.iter().enumerate() {
+                    if j > 0 {
+                        result.push(',');
                     }
-
-                    result.push_str(&format!("in{}sigs={};", i, psbt_input.partial_sigs.len()));
+                    result.push_str(&element.to_lower_hex_string());
                 }
+                result.push_str(";}");
             }
+            result.push_str("];");
 
-            for (i, output) in psbt.unsigned_tx.outputs.iter().enumerate() {
-                if i < psbt.outputs.len() {
-                    // refer: https://github.com/bitcoinfuzz/bitcoinfuzz/issues/134#issuecomment-2884936854 for typecasting
-                    result.push_str(&format!("out{}val={};", i, output.amount.to_sat() as i64));
-                    result.push_str(&format!(
-                        "out{}script={};",
-                        i,
-                        output.script_pubkey.to_hex_string()
-                    ));
+            result.push_str("psbt_inputs=[");
+            for input in psbt.inputs.iter() {
+                result.push_str(&format!(
+                    "{{redeem={};",
+                    input
+                        .redeem_script.as_ref()
+                        .map(|redeem| redeem.to_hex_string())
+                        .unwrap_or("".to_string())
+                ));
+                result.push_str(&format!(
+                    "script_sig_final={};",
+                    input
+                        .final_script_sig.as_ref()
+                        .map(|script_sig| script_sig.to_hex_string())
+                        .unwrap_or("".to_string())
+                ));
+                result.push_str(&format!(
+                    "witness_script={};",
+                    input
+                        .witness_script.as_ref()
+                        .map(|witness| witness.to_hex_string())
+                        .unwrap_or("".to_string())
+                ));
+                result.push_str("final_witness_script=");
+                if let Some(witness) = input.final_script_witness.as_ref() {
+                    for (j, element) in witness.iter().enumerate() {
+                        if j > 0 {
+                            result.push(',');
+                        }
+                        result.push_str(&element.to_lower_hex_string());
+                    }
                 }
+                result.push_str(";}");
             }
+            result.push_str("];");
+
+            result.push_str("tx_outputs=[");
+            for output in tx.outputs.iter() {
+                result.push_str(&format!("{{value={};", output.amount.to_sat()));
+                result.push_str(&format!(
+                    "script={};}}",
+                    output.script_pubkey.to_hex_string()
+                ));
+            }
+            result.push_str("];");
+
+            result.push_str("psbt_outputs=[");
+            for output in psbt.outputs.iter() {
+                result.push_str(&format!(
+                    "{{redeem={};",
+                    output
+                        .redeem_script.as_ref()
+                        .map(|redeem| redeem.to_hex_string())
+                        .unwrap_or("".to_string())
+                ));
+                result.push_str(&format!(
+                    "witness_script={};}}",
+                    output
+                        .witness_script.as_ref()
+                        .map(|witness| witness.to_hex_string())
+                        .unwrap_or("".to_string())
+                ));
+            }
+            result.push_str("]");
 
             str_to_c_string(&result)
         }
