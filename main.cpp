@@ -5,6 +5,12 @@
 #include <iostream>
 #include <memory>
 
+#ifdef LIBAFL
+#include <stdint.h>
+#include <unistd.h>
+__AFL_FUZZ_INIT();
+#endif
+
 #ifdef BITCOIN_CORE
 #include <modules/bitcoin/module.h>
 #endif
@@ -124,6 +130,8 @@
 std::shared_ptr<bitcoinfuzz::Driver> driver = nullptr;
 
 static bitcoinfuzz::ModuleLogger module_logger;
+static const char *g_target = nullptr;
+static bool g_initialized = false;
 
 static void InitializeRegistryOnce() {
   std::string error = bitcoinfuzz::ModuleRegistry::instance().initialize();
@@ -133,12 +141,7 @@ static void InitializeRegistryOnce() {
   }
 }
 
-extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
-  InitializeRegistryOnce();
-
-  const char *target = std::getenv("FUZZ");
-  driver = std::make_shared<bitcoinfuzz::Driver>(module_logger);
-
+static void LoadModules() {
   auto &registry = bitcoinfuzz::ModuleRegistry::instance();
 
 #ifdef BITCOIN_CORE
@@ -261,6 +264,44 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 #endif
 
   module_logger.logModules();
-  driver->Run(Data, Size, target);
+}
+
+static void Initialize() {
+  if(!g_initialized) {
+    InitializeRegistryOnce();
+    g_target = std::getenv("FUZZ");
+    driver = std::make_shared<bitcoinfuzz::Driver>(module_logger);
+    LoadModules();
+    g_initialized = true;
+  }
+}
+
+#ifndef LIBAFL
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
+  Initialize();
+  driver->Run(Data, Size, g_target);
   return 0;
 }
+#endif
+
+#ifdef LIBAFL
+int main(int argc, char **argv) {
+  (void)argc;
+  (void)argv;
+
+  Initialize();
+
+#ifdef __AFL_HAVE_MANUAL_CONTROL
+  __AFL_INIT();
+#endif
+
+  unsigned char *buf = __AFL_FUZZ_TESTCASE_BUF;
+
+  while (__AFL_LOOP(10000)) {
+    size_t len = __AFL_FUZZ_TESTCASE_LEN;
+    driver->Run(buf, len, g_target);
+  }
+
+  return 0;
+}
+#endif

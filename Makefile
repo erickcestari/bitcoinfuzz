@@ -1,6 +1,10 @@
 all: bitcoinfuzz
 
-BASE_CXXFLAGS := -fsanitize=address,fuzzer -Wall -Wextra -std=c++20 -I include -I .
+ifneq ($(findstring -DLIBAFL,$(CXXFLAGS)),)
+  BASE_CXXFLAGS := -fsanitize=address -Wall -Wextra -std=c++20 -I include -I .
+else
+  BASE_CXXFLAGS := -fsanitize=address,fuzzer -Wall -Wextra -std=c++20 -I include -I .
+endif
 UNAME_S := $(shell uname -s)
 BITCOINFUZZ_SRC := basemodule modulelogger
 BITCOINFUZZ_OBJS := $(addprefix include/bitcoinfuzz/, $(addsuffix .o, $(BITCOINFUZZ_SRC)))
