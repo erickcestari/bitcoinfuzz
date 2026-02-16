@@ -683,7 +683,7 @@ pub unsafe extern "C" fn ldk_decode_onion(data: *const u8, len: usize) -> *mut c
         &onion_packet.hop_data,
         onion_packet.hmac,
         None,
-        None,
+        None, // Parse a blinding point if received any
         &node_signer,
     ) {
         Ok(decoded_hop) => decoded_hop,
@@ -776,6 +776,9 @@ pub unsafe extern "C" fn ldk_decode_onion(data: *const u8, len: usize) -> *mut c
             }
 
             str_to_c_string(&result)
+        }
+        _ => {
+            panic!("gggg");
         }
         // TODO: Currently the custom mutator can't generate any valid onions
         // of these types, and if ever does it will trigger a crash.

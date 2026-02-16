@@ -595,15 +595,34 @@ func LndDecodeOnion(data *C.char, length C.int) *C.char {
 			}
 		}
 
-		// TODO: Try to decrypt the route blinding encrypted data for now let skip
-		if payload.EncryptedData() != nil {
-			return nil
-		}
 		sb.WriteString(fmt.Sprintf("AMT_TO_FORWARD=%d", payload.FwdInfo.AmountToForward))
 		if processedPacket.Action == sphinx.MoreHops {
 			sb.WriteString(fmt.Sprintf(";SHORT_CHANNEL_ID=%d", payload.FwdInfo.NextHop.ToUint64()))
 		}
 		sb.WriteString(fmt.Sprintf(";OUTGOING_CLTV_VALUE=%d", payload.FwdInfo.OutgoingCTLV))
+
+		if payload.EncryptedData() != nil {
+			sb.WriteString(fmt.Sprintf(";ENCRYPTED_RECIPIENT_DATA=%x", payload.EncryptedData()))
+			decrypted, err := router.DecryptBlindedHopData(payload.BlindingPoint(), payload.EncryptedData())
+			if err != nil {
+				return C.CString("")
+			}
+
+			buf := bytes.NewBuffer(decrypted)
+			routeData, err := record.DecodeBlindedRouteData(buf)
+			if err != nil {
+				return C.CString("")
+			}
+
+			err = hop.ValidateBlindedRouteData(
+				routeData, 0,
+				0,
+			)
+			if err != nil {
+				return C.CString("")
+			}
+
+		}
 
 		if payload.CustomRecords().IsKeysend() {
 			preimage, err := lntypes.MakePreimage(payload.CustomRecords()[record.KeySendType])

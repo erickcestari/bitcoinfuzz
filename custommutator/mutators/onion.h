@@ -6,7 +6,7 @@
  * packet, mutating the plaintext payload, and then re-encrypting and
  * re-authenticating the packet.
  *
- * TODO: Update custom mutator to be able to create onion blinded payloads.
+ * Supports both standard and blinded onion payloads for route blinding.
  *
  * ONION PACKET STRUCTURE:
  * The fuzzer input contains an onion packet with the following format:
@@ -66,10 +66,30 @@
  *    c. Reconstruct the complete packet with all components
  */
 
+/**
+ * BLINDED PAYLOAD SUPPORT:
+ *
+ * When generating blinded payloads, the mutator:
+ * 1. Generates a random blinding point (path_key) - a valid secp256k1 public
+ * key
+ * 2. Adds TLV type 12 (current_path_key) containing the blinding point
+ * 3. Computes shared secret: ss = ECDH(node_private_key, blinding_point)
+ * 4. Derives rho key: rho = HMAC-SHA256(key="rho", message=ss)
+ * 5. Encrypts inner TLV payload with ChaCha20-Poly1305(key=rho, nonce=0)
+ * 6. Adds TLV type 10 (encrypted_recipient_data) with the ciphertext
+ *
+ * The encrypted_recipient_data contains:
+ * - TLV type 2 (short_channel_id): 8 bytes - next hop channel
+ * - TLV type 4 (payment_relay): fee and CLTV delta info
+ * - TLV type 6 (payment_constraints): max CLTV, min amount
+ * - TLV type 8 (path_id): 32 bytes - optional path identifier (final hop)
+ */
+
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <custommutator/utils/crypto/chacha20.h>
+#include <custommutator/utils/crypto/chacha20poly1305.h>
 #include <custommutator/utils/crypto/hmac_sha256.h>
 #include <external/secp256k1/include/secp256k1.h>
 #include <external/secp256k1/include/secp256k1_ecdh.h>
@@ -223,17 +243,24 @@ constexpr size_t HMAC_OFFSET = HOP_PAYLOADS_OFFSET + HOP_PAYLOADS_SIZE;
 constexpr unsigned int KEY_MUTATION_PROBABILITY = 1; // 1% chance
 
 // Payload mutation strategy probabilities (should sum to 100)
-constexpr unsigned int STANDARD_MUTATION_PROBABILITY = 50; // 50%: Raw mutation
+constexpr unsigned int STANDARD_MUTATION_PROBABILITY = 40; // 40%: Raw mutation
 constexpr unsigned int TLV_STRUCTURE_MUTATION_PROBABILITY =
-    50; // 50%: Structure-aware TLV
+    40; // 40%: Structure-aware TLV
+constexpr unsigned int BLINDED_PAYLOAD_PROBABILITY =
+    20; // 20%: Blinded payload generation
 
 constexpr unsigned int STANDARD_THRESHOLD = STANDARD_MUTATION_PROBABILITY;
 constexpr unsigned int TLV_STRUCTURE_THRESHOLD =
     STANDARD_THRESHOLD + TLV_STRUCTURE_MUTATION_PROBABILITY;
+constexpr unsigned int BLINDED_PAYLOAD_THRESHOLD =
+    TLV_STRUCTURE_THRESHOLD + BLINDED_PAYLOAD_PROBABILITY;
 
 // Static assertion to ensure probabilities sum to 100
-static_assert(TLV_STRUCTURE_THRESHOLD == 100,
+static_assert(BLINDED_PAYLOAD_THRESHOLD == 100,
               "Mutation probabilities must sum to 100");
+
+// ChaCha20-Poly1305 constants
+constexpr size_t POLY1305_TAG_SIZE = 16;
 
 // BigSize encoding constants for TLV format
 constexpr uint8_t BIGSIZE_ONE_BYTE_MAX =
@@ -271,6 +298,23 @@ static uint64_t mutate_tlv_type_value(uint64_t existing_type) {
 static const uint64_t COMMON_TLV_TYPES[] = {2,  4,  6,  8,         10,
                                             12, 16, 18, 5482373484};
 constexpr size_t NUM_COMMON_TYPES = std::size(COMMON_TLV_TYPES);
+
+// TLV types for blinded payloads (encrypted_recipient_data inner TLVs)
+constexpr uint64_t TLV_TYPE_SHORT_CHANNEL_ID = 2;
+constexpr uint64_t TLV_TYPE_PAYMENT_RELAY = 4;
+constexpr uint64_t TLV_TYPE_PAYMENT_CONSTRAINTS = 6;
+constexpr uint64_t TLV_TYPE_PATH_ID = 8;
+
+// TLV types for outer onion payload with blinding
+constexpr uint64_t TLV_TYPE_ENCRYPTED_RECIPIENT_DATA = 10;
+constexpr uint64_t TLV_TYPE_CURRENT_PATH_KEY = 12;
+
+// Forward declarations for functions used in blinded payload generation
+static void derive_key(const uint8_t *shared_secret, uint8_t *derived_key,
+                       const char *key_type);
+static bool compute_shared_secret(const uint8_t *private_key,
+                                  const uint8_t *public_key_bytes,
+                                  uint8_t *shared_secret);
 
 struct TLVRecord {
   uint64_t type;
@@ -747,6 +791,225 @@ static TLVHopPayload generate_new_tlv_payload() {
   return payload;
 }
 
+// Generate a valid secp256k1 keypair for blinding
+struct BlindingKeypair {
+  uint8_t private_key[KEY_SIZE];
+  uint8_t public_key[PUBLIC_KEY_SIZE];
+  bool valid;
+};
+
+static BlindingKeypair generate_blinding_keypair() {
+  BlindingKeypair result = {{0}, {0}, false};
+  secp256k1_context *ctx = get_secp256k1_context();
+  if (!ctx)
+    return result;
+
+  // Generate random private key
+  for (size_t i = 0; i < KEY_SIZE; i++) {
+    result.private_key[i] = static_cast<uint8_t>(rand() & 0xFF);
+  }
+  LLVMFuzzerMutate(result.private_key, KEY_SIZE, KEY_SIZE);
+
+  // Verify it's a valid private key
+  if (!secp256k1_ec_seckey_verify(ctx, result.private_key)) {
+    // Try to fix by setting to a known valid key pattern
+    result.private_key[0] = 0x01;
+    for (size_t i = 1; i < KEY_SIZE - 1; i++) {
+      result.private_key[i] = static_cast<uint8_t>(rand() & 0xFF);
+    }
+    result.private_key[KEY_SIZE - 1] = 0x01;
+    if (!secp256k1_ec_seckey_verify(ctx, result.private_key)) {
+      return result;
+    }
+  }
+
+  // Derive public key
+  secp256k1_pubkey pubkey;
+  if (!secp256k1_ec_pubkey_create(ctx, &pubkey, result.private_key)) {
+    return result;
+  }
+
+  // Serialize compressed public key
+  size_t output_len = PUBLIC_KEY_SIZE;
+  if (!secp256k1_ec_pubkey_serialize(ctx, result.public_key, &output_len,
+                                     &pubkey, SECP256K1_EC_COMPRESSED)) {
+    return result;
+  }
+
+  result.valid = true;
+  return result;
+}
+
+// Generate encrypted_recipient_data TLV payload for blinded routes
+// This creates the inner TLV stream that will be encrypted with
+// ChaCha20-Poly1305
+static std::vector<uint8_t> generate_encrypted_recipient_data_plaintext() {
+  std::vector<uint8_t> tlv_stream;
+
+  // Randomly decide which TLVs to include
+  bool include_scid = (rand() % 2) == 0;
+  bool include_relay = (rand() % 2) == 0;
+  bool include_constraints = (rand() % 2) == 0;
+  bool include_path_id = (rand() % 3) == 0; // Less common, only for final hop
+
+  // Ensure at least one TLV is included
+  if (!include_scid && !include_relay && !include_constraints &&
+      !include_path_id) {
+    include_scid = true;
+  }
+
+  auto append_tlv = [&tlv_stream](uint64_t type,
+                                  const std::vector<uint8_t> &value) {
+    uint8_t type_buf[9];
+    size_t type_len = encode_bigsize(type_buf, type);
+    tlv_stream.insert(tlv_stream.end(), type_buf, type_buf + type_len);
+
+    uint8_t len_buf[9];
+    size_t len_len = encode_bigsize(len_buf, value.size());
+    tlv_stream.insert(tlv_stream.end(), len_buf, len_buf + len_len);
+
+    tlv_stream.insert(tlv_stream.end(), value.begin(), value.end());
+  };
+
+  // TLV type 2: short_channel_id (8 bytes)
+  if (include_scid) {
+    std::vector<uint8_t> scid = generate_buffer(8);
+    append_tlv(TLV_TYPE_SHORT_CHANNEL_ID, scid);
+  }
+
+  // TLV type 4: payment_relay (fee_base_msat: tu32, fee_prop: tu32,
+  // cltv_expiry_delta: tu16)
+  if (include_relay) {
+    std::vector<uint8_t> relay;
+    // fee_base_msat (truncated u32)
+    auto fee_base = generate_tu_int(4);
+    relay.insert(relay.end(), fee_base.begin(), fee_base.end());
+    // fee_proportional_millionths (truncated u32)
+    auto fee_prop = generate_tu_int(4);
+    relay.insert(relay.end(), fee_prop.begin(), fee_prop.end());
+    // cltv_expiry_delta (truncated u16)
+    auto cltv_delta = generate_tu_int(2);
+    relay.insert(relay.end(), cltv_delta.begin(), cltv_delta.end());
+    append_tlv(TLV_TYPE_PAYMENT_RELAY, relay);
+  }
+
+  // TLV type 6: payment_constraints (max_cltv_expiry: tu32, htlc_minimum_msat:
+  // tu64)
+  if (include_constraints) {
+    std::vector<uint8_t> constraints;
+    // max_cltv_expiry (truncated u32)
+    auto max_cltv = generate_tu_int(4);
+    constraints.insert(constraints.end(), max_cltv.begin(), max_cltv.end());
+    // htlc_minimum_msat (truncated u64)
+    auto min_htlc = generate_tu_int(8);
+    constraints.insert(constraints.end(), min_htlc.begin(), min_htlc.end());
+    append_tlv(TLV_TYPE_PAYMENT_CONSTRAINTS, constraints);
+  }
+
+  // TLV type 8: path_id (32 bytes, only for final hop)
+  if (include_path_id) {
+    std::vector<uint8_t> path_id = generate_buffer(32);
+    append_tlv(TLV_TYPE_PATH_ID, path_id);
+  }
+
+  return tlv_stream;
+}
+
+// Encrypt the encrypted_recipient_data using ChaCha20-Poly1305
+// key: rho derived from ECDH shared secret
+// Returns: ciphertext with 16-byte Poly1305 tag appended
+static std::vector<uint8_t>
+encrypt_recipient_data(const uint8_t *rho_key,
+                       const std::vector<uint8_t> &plaintext) {
+  // Output size = plaintext + 16 byte tag
+  std::vector<uint8_t> ciphertext(plaintext.size() + POLY1305_TAG_SIZE);
+
+  std::span<const std::byte> key_span(
+      reinterpret_cast<const std::byte *>(rho_key), KEY_SIZE);
+  AEADChaCha20Poly1305 aead(key_span);
+
+  std::span<const std::byte> plain_span(
+      reinterpret_cast<const std::byte *>(plaintext.data()), plaintext.size());
+  std::span<std::byte> cipher_span(
+      reinterpret_cast<std::byte *>(ciphertext.data()), ciphertext.size());
+
+  // Use zero nonce as per Lightning spec
+  AEADChaCha20Poly1305::Nonce96 nonce = {0, 0};
+
+  // No AAD for encrypted_recipient_data
+  std::span<const std::byte> empty_aad;
+
+  aead.Encrypt(plain_span, empty_aad, nonce, cipher_span);
+
+  return ciphertext;
+}
+
+// Generate a blinded TLV payload with current_path_key and encrypted data
+static TLVHopPayload
+generate_blinded_tlv_payload(const uint8_t *recipient_private_key) {
+  TLVHopPayload payload;
+  payload.valid = true;
+
+  // Generate blinding keypair (path_key)
+  BlindingKeypair blinding = generate_blinding_keypair();
+  if (!blinding.valid) {
+    // Fall back to standard payload if key generation fails
+    return generate_new_tlv_payload();
+  }
+
+  // Compute shared secret: ss = ECDH(blinding_private_key, recipient_pubkey)
+  // But we need to compute it from recipient's perspective:
+  // ss = ECDH(recipient_private_key, blinding_pubkey)
+  uint8_t shared_secret[KEY_SIZE];
+  if (!compute_shared_secret(recipient_private_key, blinding.public_key,
+                             shared_secret)) {
+    return generate_new_tlv_payload();
+  }
+
+  // Derive rho key for encryption
+  uint8_t rho[KEY_SIZE];
+  derive_key(shared_secret, rho, "rho");
+
+  // Generate the inner TLV payload to encrypt
+  std::vector<uint8_t> inner_tlv =
+      generate_encrypted_recipient_data_plaintext();
+
+  // Encrypt with ChaCha20-Poly1305
+  std::vector<uint8_t> encrypted_data = encrypt_recipient_data(rho, inner_tlv);
+
+  // Build the outer TLV payload
+  // Required: amt_to_forward (type 2) and outgoing_cltv_value (type 4)
+  TLVRecord amt_record;
+  amt_record.type = 2;
+  amt_record.value = generate_value_for_type(2);
+  payload.records.push_back(amt_record);
+
+  TLVRecord cltv_record;
+  cltv_record.type = 4;
+  cltv_record.value = generate_value_for_type(4);
+  payload.records.push_back(cltv_record);
+
+  // Add encrypted_recipient_data (type 10)
+  TLVRecord enc_data_record;
+  enc_data_record.type = TLV_TYPE_ENCRYPTED_RECIPIENT_DATA;
+  enc_data_record.value = encrypted_data;
+  payload.records.push_back(enc_data_record);
+
+  // Add current_path_key (type 12) - the blinding point
+  TLVRecord path_key_record;
+  path_key_record.type = TLV_TYPE_CURRENT_PATH_KEY;
+  path_key_record.value.assign(blinding.public_key,
+                               blinding.public_key + PUBLIC_KEY_SIZE);
+  payload.records.push_back(path_key_record);
+
+  // Sort by type to ensure valid TLV ordering
+  std::sort(
+      payload.records.begin(), payload.records.end(),
+      [](const TLVRecord &a, const TLVRecord &b) { return a.type < b.type; });
+
+  return payload;
+}
+
 // Derives a key using HMAC-SHA256(key=keyType, message=sharedSecret)
 static void derive_key(const uint8_t *shared_secret, uint8_t *derived_key,
                        const char *key_type) {
@@ -874,10 +1137,10 @@ size_t LLVMFuzzerCustomMutator(uint8_t *fuzz_data, size_t size, size_t max_size,
   unsigned int mutation_choice = rand() % 100;
 
   if (mutation_choice < STANDARD_THRESHOLD) {
-    // Strategy 1: Standard mutation - mutate entire payload (50%)
+    // Strategy 1: Standard mutation - mutate entire payload (40%)
     LLVMFuzzerMutate(decrypted_payload, HOP_PAYLOADS_SIZE, HOP_PAYLOADS_SIZE);
-  } else {
-    // Strategy 2: Structure-aware TLV mutation (50%)
+  } else if (mutation_choice < TLV_STRUCTURE_THRESHOLD) {
+    // Strategy 2: Structure-aware TLV mutation (40%)
     TLVHopPayload parsed =
         parse_tlv_hop_payload(decrypted_payload, HOP_PAYLOADS_SIZE);
 
@@ -904,6 +1167,21 @@ size_t LLVMFuzzerCustomMutator(uint8_t *fuzz_data, size_t size, size_t max_size,
         memset(decrypted_payload + serialized_size, 0,
                HOP_PAYLOADS_SIZE - serialized_size);
       }
+    }
+  } else {
+    // Strategy 3: Generate blinded payload with encrypted_recipient_data (20%)
+    // Uses the recipient's private key (from fuzz input) to compute shared
+    // secret
+    TLVHopPayload blinded_payload =
+        generate_blinded_tlv_payload(fuzz_data + PRIVATE_KEY_OFFSET);
+
+    size_t serialized_size = serialize_tlv_hop_payload(
+        blinded_payload, decrypted_payload, HOP_PAYLOADS_SIZE);
+
+    // Zero-pad remaining space
+    if (serialized_size < HOP_PAYLOADS_SIZE) {
+      memset(decrypted_payload + serialized_size, 0,
+             HOP_PAYLOADS_SIZE - serialized_size);
     }
   }
 

@@ -842,6 +842,12 @@ clightning_decode_onion(std::span<const uint8_t> buffer) {
                          tal_bytelen(payload->payment_metadata));
   }
 
+  if (payload->tlv->encrypted_recipient_data) {
+    result << ";ENCRYPTED_RECIPIENT_DATA="
+           << hex_encode(payload->tlv->encrypted_recipient_data,
+                         tal_bytelen(payload->tlv->encrypted_recipient_data));
+  }
+
   // We need to skip if the total_amount_msat is equal to 0 because, on the
   // LND side, it's the default value even if no total_amount_msat was parsed.
   if (payload->tlv->total_amount_msat &&
