@@ -567,13 +567,14 @@ func LndDecodeOnion(data *C.char, length C.int) *C.char {
 
 	var sb strings.Builder
 
+	isFinal := processedPacket.Action == sphinx.ExitNode
 	// TLV onion payload
 	if processedPacket.Payload.Type == sphinx.PayloadTLV {
 		payload, parsed, err := hop.ParseTLVPayload(bytes.NewReader(processedPacket.Payload.Payload))
 		if err != nil {
 			return C.CString("")
 		}
-		err = hop.ValidateTLVPayload(parsed, processedPacket.Action == sphinx.ExitNode, false)
+		err = hop.ValidateTLVPayload(parsed, isFinal, false)
 		if err != nil {
 			// We will skip this error for now to avoid crashing the fuzzer, since the Core Lightning does not perform this check.
 			if err.Error() == "onion payload for intermediate hop included record with type 8" {
@@ -596,7 +597,7 @@ func LndDecodeOnion(data *C.char, length C.int) *C.char {
 		}
 
 		sb.WriteString(fmt.Sprintf("AMT_TO_FORWARD=%d", payload.FwdInfo.AmountToForward))
-		if processedPacket.Action == sphinx.MoreHops {
+		if !isFinal {
 			sb.WriteString(fmt.Sprintf(";SHORT_CHANNEL_ID=%d", payload.FwdInfo.NextHop.ToUint64()))
 		}
 		sb.WriteString(fmt.Sprintf(";OUTGOING_CLTV_VALUE=%d", payload.FwdInfo.OutgoingCTLV))
@@ -607,6 +608,17 @@ func LndDecodeOnion(data *C.char, length C.int) *C.char {
 			if err != nil {
 				return C.CString("")
 			}
+			// This is the final node in the blinded route.
+			if isFinal {
+				return deriveBlindedRouteFinalHopForwardingInfo(
+					routeData, payload, routeRole,
+				)
+			}
+
+			// Else, we are a forwarding node in this blinded path.
+			return deriveBlindedRouteForwardingInfo(
+				r, routeData, payload, routeRole, blindingPoint,
+			)
 
 			buf := bytes.NewBuffer(decrypted)
 			routeData, err := record.DecodeBlindedRouteData(buf)
@@ -622,6 +634,17 @@ func LndDecodeOnion(data *C.char, length C.int) *C.char {
 				return C.CString("")
 			}
 
+			routeData.Padding.WhenSome(func(rt tlv.RecordT[tlv.TlvType1, []byte]) {
+				sb.WriteString(fmt.Sprintf(";RECIPIENT_DATA_PADDING=%x", rt.Val))
+			})
+			routeData.ShortChannelID.WhenSome(func(rt tlv.RecordT[tlv.TlvType2, lnwire.ShortChannelID]) {
+				sb.WriteString(fmt.Sprintf(";RECIPIENT_DATA_SHORT_CHANNEL_ID=%d", rt.Val.ToUint64()))
+			})
+			routeData.Constraints.WhenSome(func(rt tlv.RecordT[tlv.TlvType12, record.PaymentConstraints]) {
+				sb.WriteString(fmt.Sprintf(";RECIPIENT_DATA_CONSTRAINTS_MAX_CLTV_VERIFY=%d", rt.Val.MaxCltvExpiry))
+				sb.WriteString(fmt.Sprintf(";RECIPIENT_DATA_CONSTRAINTS_HTLC_MINIMUM_MSAT=%d", rt.Val.HtlcMinimumMsat))
+			})
+
 		}
 
 		if payload.CustomRecords().IsKeysend() {
@@ -629,7 +652,7 @@ func LndDecodeOnion(data *C.char, length C.int) *C.char {
 			if err != nil {
 				return C.CString("")
 			}
-			if processedPacket.Action == sphinx.ExitNode {
+			if isFinal {
 				sb.WriteString(";KEYSEND_PREIMAGE=" + preimage.String())
 			}
 		}
@@ -655,7 +678,7 @@ func LndDecodeOnion(data *C.char, length C.int) *C.char {
 		// Legacy onion payload
 		sb.WriteString("AMT_TO_FORWARD=")
 		sb.WriteString(fmt.Sprintf("%d", processedPacket.ForwardingInstructions.ForwardAmount))
-		if processedPacket.Action != sphinx.ExitNode {
+		if !isFinal {
 			sb.WriteString(";SHORT_CHANNEL_ID=")
 			nextAddr := binary.BigEndian.Uint64(processedPacket.ForwardingInstructions.NextAddress[:])
 			sb.WriteString(fmt.Sprintf("%d", nextAddr))
@@ -664,7 +687,7 @@ func LndDecodeOnion(data *C.char, length C.int) *C.char {
 		sb.WriteString(fmt.Sprintf("%d", processedPacket.ForwardingInstructions.OutgoingCltv))
 	}
 
-	if processedPacket.Action == sphinx.MoreHops {
+	if !isFinal {
 		nextPacket := processedPacket.NextPacket
 		sb.WriteString(";NEXT_HMAC=")
 		sb.WriteString(fmt.Sprintf("%x", nextPacket.HeaderMAC[:]))

@@ -791,6 +791,7 @@ clightning_decode_onion(std::span<const uint8_t> buffer) {
   }
 
   struct onion_payload *payload;
+  struct tlv_encrypted_data_tlv *enc;
   u64 failtlvtype;
   size_t failtlvpos;
   const char *explanation;
@@ -806,6 +807,7 @@ clightning_decode_onion(std::span<const uint8_t> buffer) {
         failtlvtype >= 65536) {
       return std::nullopt;
     };
+    std::cout << explanation;
     return "";
   }
 
@@ -843,9 +845,28 @@ clightning_decode_onion(std::span<const uint8_t> buffer) {
   }
 
   if (payload->tlv->encrypted_recipient_data) {
+    enc = decrypt_encrypted_data(tmpctx, &payload->blinding_ss,
+               payload->tlv->encrypted_recipient_data);
     result << ";ENCRYPTED_RECIPIENT_DATA="
            << hex_encode(payload->tlv->encrypted_recipient_data,
                          tal_bytelen(payload->tlv->encrypted_recipient_data));
+    if (enc->padding) {
+      result << ";RECIPIENT_DATA_PADDING=" << hex_encode(enc->padding, tal_bytelen(enc->padding));
+    }
+    if (enc->short_channel_id) {
+      result << ";RECIPIENT_DATA_SHORT_CHANNEL_ID=" << enc->short_channel_id->u64;
+    }
+    if (enc->next_node_id) {
+      result << ";RECIPIENT_DATA_SHORT_CHANNEL_ID=" << fmt_secp256k1_pubkey(tmpctx, &enc->next_node_id->pubkey);
+    }
+    if (enc->payment_constraints) {
+      result << ";RECIPIENT_DATA_CONSTRAINTS_MAX_CLTV_VERIFY=" << enc->payment_constraints->max_cltv_expiry;
+      result << ";RECIPIENT_DATA_CONSTRAINTS_HTLC_MINIMUM_MSAT=" << enc->payment_constraints->htlc_minimum_msat;
+    }
+    if (enc->payment_constraints) {
+      result << ";RECIPIENT_DATA_CONSTRAINTS_MAX_CLTV_VERIFY=" << enc->payment_constraints->max_cltv_expiry;
+      result << ";RECIPIENT_DATA_CONSTRAINTS_HTLC_MINIMUM_MSAT=" << enc->payment_constraints->htlc_minimum_msat;
+    }
   }
 
   // We need to skip if the total_amount_msat is equal to 0 because, on the
