@@ -6,7 +6,7 @@ use bitcoin::bip32::Fingerprint;
 use bitcoin::bip32::Xpriv;
 use bitcoin::bip32::Xpub;
 use bitcoin::consensus::{deserialize_partial, encode, serialize};
-use bitcoin::hex::DisplayHex;
+use bitcoin::hashes::hex::DisplayHex;
 use bitcoin::script::ScriptExt;
 use bitcoin::script::ScriptPubKeyBuf;
 use bitcoin::script::ScriptPubKeyExt;
