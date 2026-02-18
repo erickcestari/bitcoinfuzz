@@ -547,19 +547,32 @@ func LndDecodeOnion(data *C.char, length C.int) *C.char {
 	}
 	priv, _ := btcec.PrivKeyFromBytes(buffer[:32])
 
-	r := bytes.NewReader(buffer[32:])
+	keychain := &keychain.PrivKeyECDH{PrivKey: priv}
+	router := sphinx.NewRouter(keychain, &NoOpReplayLog{})
 
-	var onion sphinx.OnionPacket
-	err := onion.Decode(r)
+	r := bytes.NewReader(buffer[32:])
+	r2 := bytes.NewReader(buffer[32:])
+
+	associateData := []byte{}
+	incomingCltv := uint32(0)
+
+	onionProcesor := hop.NewOnionProcessor(router)
+	blindingInfo := hop.ReconstructBlindingInfo{
+		BlindingKey:    lnwire.BlindingPointRecord{},
+		IncomingAmt:    0,
+		IncomingExpiry: 0,
+	}
+	_, err := onionProcesor.ReconstructHopIterator(r2, associateData, blindingInfo)
 	if err != nil {
 		return C.CString("")
 	}
 
-	keychain := &keychain.PrivKeyECDH{PrivKey: priv}
-	associateData := []byte{}
-	incomingCltv := uint32(0)
+	var onion sphinx.OnionPacket
+	err = onion.Decode(r)
+	if err != nil {
+		return C.CString("")
+	}
 
-	router := sphinx.NewRouter(keychain, &NoOpReplayLog{})
 	processedPacket, err := router.ProcessOnionPacket(&onion, associateData, incomingCltv)
 	if err != nil {
 		return C.CString("")
@@ -608,17 +621,6 @@ func LndDecodeOnion(data *C.char, length C.int) *C.char {
 			if err != nil {
 				return C.CString("")
 			}
-			// This is the final node in the blinded route.
-			if isFinal {
-				return deriveBlindedRouteFinalHopForwardingInfo(
-					routeData, payload, routeRole,
-				)
-			}
-
-			// Else, we are a forwarding node in this blinded path.
-			return deriveBlindedRouteForwardingInfo(
-				r, routeData, payload, routeRole, blindingPoint,
-			)
 
 			buf := bytes.NewBuffer(decrypted)
 			routeData, err := record.DecodeBlindedRouteData(buf)
