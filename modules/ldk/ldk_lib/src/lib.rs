@@ -708,6 +708,7 @@ pub unsafe extern "C" fn ldk_decode_onion(data: *const u8, len: usize) -> *mut c
                 return std::ptr::null_mut();
             }
             _ => {
+                println!("{error:?}");
                 return str_to_c_string("");
             }
         },
@@ -777,11 +778,6 @@ pub unsafe extern "C" fn ldk_decode_onion(data: *const u8, len: usize) -> *mut c
 
             str_to_c_string(&result)
         }
-        _ => {
-            panic!("gggg");
-        }
-        // TODO: Currently the custom mutator can't generate any valid onions
-        // of these types, and if ever does it will trigger a crash.
         Hop::TrampolineForward { .. } => str_to_c_string("trampoline_forward"),
         Hop::TrampolineBlindedForward { .. } => str_to_c_string("trampoline_blinded_forward"),
         Hop::BlindedForward { .. } => str_to_c_string("blinded_forward"),

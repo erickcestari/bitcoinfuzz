@@ -797,7 +797,7 @@ clightning_decode_onion(std::span<const uint8_t> buffer) {
   const char *explanation;
   u32 cltv = 0;
 
-  payload = onion_decode(tmpctx, rs, NULL, NULL, AMOUNT_MSAT(0), cltv,
+  payload = onion_decode(tmpctx, rs, NULL, NULL, AMOUNT_MSAT(UINT64_MAX/2), cltv,
                          &failtlvtype, &failtlvpos, &explanation);
 
   if (!payload) {
@@ -807,6 +807,9 @@ clightning_decode_onion(std::span<const uint8_t> buffer) {
         failtlvtype >= 65536) {
       return std::nullopt;
     };
+    if (strstr(explanation, "non-zero allowed_features") != nullptr) {
+    return std::nullopt;
+}
     std::cout << explanation;
     return "";
   }
@@ -859,13 +862,23 @@ clightning_decode_onion(std::span<const uint8_t> buffer) {
     if (enc->next_node_id) {
       result << ";RECIPIENT_DATA_SHORT_CHANNEL_ID=" << fmt_secp256k1_pubkey(tmpctx, &enc->next_node_id->pubkey);
     }
-    if (enc->payment_constraints) {
-      result << ";RECIPIENT_DATA_CONSTRAINTS_MAX_CLTV_VERIFY=" << enc->payment_constraints->max_cltv_expiry;
-      result << ";RECIPIENT_DATA_CONSTRAINTS_HTLC_MINIMUM_MSAT=" << enc->payment_constraints->htlc_minimum_msat;
+    if (enc->path_id) {
+      result << ";RECIPIENT_DATA_PATH_ID=" << hex_encode(enc->path_id, tal_bytelen(enc->path_id));
+    }
+    if (enc->next_path_key_override) {
+      result << ";RECIPIENT_DATA_PATH_KEY=" << fmt_secp256k1_pubkey(tmpctx, &enc->next_path_key_override->pubkey);
+    }
+    if (enc->payment_relay) {
+      result << ";RECIPIENT_DATA_PAYMENT_RELAY_CLTV_EXPIRY_DELTA=" << enc->payment_relay->cltv_expiry_delta;
+      result << ";RECIPIENT_DATA_PAYMENT_RELAY_FEE_PROPORTIONAL_MILLIONTHS=" << enc->payment_relay->fee_proportional_millionths;
+      result << ";RECIPIENT_DATA_PAYMENT_RELAY_FEE_BASE_MSAT=" << enc->payment_relay->fee_base_msat;
     }
     if (enc->payment_constraints) {
       result << ";RECIPIENT_DATA_CONSTRAINTS_MAX_CLTV_VERIFY=" << enc->payment_constraints->max_cltv_expiry;
       result << ";RECIPIENT_DATA_CONSTRAINTS_HTLC_MINIMUM_MSAT=" << enc->payment_constraints->htlc_minimum_msat;
+    }
+    if (enc->allowed_features) {
+      result << ";RECIPIENT_DATA_CONSTRAINTS_ALLOWED_FEATURES=" << hex_encode(enc->allowed_features, tal_bytelen(enc->allowed_features));
     }
   }
 

@@ -834,6 +834,22 @@ void Driver::DecodeOnionTarget(std::span<const uint8_t> buffer) const {
       continue;
     if (last_response.has_value()) {
       if (*res != *last_response) {
+        #ifdef LDK
+        if (ModuleRegistry::instance().isEnabled("LDK")) {
+        // Skip mismatches involving ldk when path_id is present.LDK doesn't
+        // parse it. And is an unknown even feature.
+        bool involves_ldk =
+            (module.first == "Ldk" || last_module_name == "Ldk");
+        bool has_path_id =
+            (res->find("RECIPIENT_DATA_PATH_ID") != std::string::npos ||
+             last_response->find("RECIPIENT_DATA_PATH_ID") != std::string::npos);
+        if (involves_ldk && has_path_id) {
+          last_response = *res;
+          last_module_name = module.first;
+          continue;
+        }
+        }
+        #endif
         std::cout << "Onion decoding failed" << std::endl;
         std::cout << "Module: " << module.first << std::endl;
         std::cout << "Result: " << *res << std::endl;
