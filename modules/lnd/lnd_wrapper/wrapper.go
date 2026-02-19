@@ -562,8 +562,17 @@ func LndDecodeOnion(data *C.char, length C.int) *C.char {
 		IncomingAmt:    0,
 		IncomingExpiry: 0,
 	}
-	_, err := onionProcesor.ReconstructHopIterator(r2, associateData, blindingInfo)
+	hopIterator, err := onionProcesor.ReconstructHopIterator(r2, []byte{}, blindingInfo)
 	if err != nil {
+		return C.CString("")
+	}
+
+	_, _, err = hopIterator.HopPayload()
+	if err != nil {
+		// We will skip this error for now to avoid crashing the fuzzer, since the Core Lightning does not perform this check.
+		if err.Error() == "onion payload for intermediate hop included record with type 8" {
+			return nil
+		}
 		return C.CString("")
 	}
 
@@ -589,10 +598,6 @@ func LndDecodeOnion(data *C.char, length C.int) *C.char {
 		}
 		err = hop.ValidateTLVPayload(parsed, isFinal, false)
 		if err != nil {
-			// We will skip this error for now to avoid crashing the fuzzer, since the Core Lightning does not perform this check.
-			if err.Error() == "onion payload for intermediate hop included record with type 8" {
-				return nil
-			}
 			return C.CString("")
 		}
 
@@ -641,6 +646,9 @@ func LndDecodeOnion(data *C.char, length C.int) *C.char {
 			})
 			routeData.ShortChannelID.WhenSome(func(rt tlv.RecordT[tlv.TlvType2, lnwire.ShortChannelID]) {
 				sb.WriteString(fmt.Sprintf(";RECIPIENT_DATA_SHORT_CHANNEL_ID=%d", rt.Val.ToUint64()))
+			})
+			routeData.PathID.WhenSome(func(rt tlv.RecordT[tlv.TlvType6, []byte]) {
+				sb.WriteString(fmt.Sprintf(";RECIPIENT_DATA_PATH_ID=%x", rt.Val))
 			})
 			routeData.Constraints.WhenSome(func(rt tlv.RecordT[tlv.TlvType12, record.PaymentConstraints]) {
 				sb.WriteString(fmt.Sprintf(";RECIPIENT_DATA_CONSTRAINTS_MAX_CLTV_VERIFY=%d", rt.Val.MaxCltvExpiry))

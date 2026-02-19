@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <span>
 #include <stdint.h>
+#include "span.h"
 
 #define POLY1305_BLOCK_SIZE 16
 
