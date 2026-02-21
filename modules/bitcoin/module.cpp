@@ -492,7 +492,8 @@ Bitcoin::psbt_parse(std::span<const uint8_t> buffer) const {
     std::string error = std::string{e.what()};
     std::cout << error << std::endl;
     if (error ==
-        "Input specifies output index that does not exist: iostream error" ||
+        "ReadCompactSize(): size too large: iostream error" ||
+        error == "Input musig2 partial sig key is not expected size of 67 or 99 bytes: iostream error" ||
       error == "Input musig2 pubnonce value is not 66 bytes: iostream error") {
       return std::nullopt;
     }
